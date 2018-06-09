@@ -17,6 +17,7 @@ define('tools.querytool', [
   'sources/sqleditor/filter_dialog',
   'sources/history/index.js',
   'sources/../jsx/history/query_history',
+  'sources/../jsx/map_view/map_view',
   'react', 'react-dom',
   'sources/keyboard_shortcuts',
   'sources/sqleditor/query_tool_actions',
@@ -36,7 +37,7 @@ define('tools.querytool', [
   babelPollyfill, gettext, url_for, $, _, S, alertify, pgAdmin, Backbone, codemirror,
   pgExplain, GridSelector, ActiveCellCapture, clipboard, copyData, RangeSelectionHelper, handleQueryOutputKeyboardEvent,
   XCellSelectionModel, setStagedRows, SqlEditorUtils, ExecuteQuery, httpErrorHandler, FilterHandler,
-  HistoryBundle, queryHistory, React, ReactDOM,
+  HistoryBundle, queryHistory, mapView, React, ReactDOM,
   keyboardShortcuts, queryToolActions, queryToolNotifications, Datagrid,
   modifyAnimation, calculateQueryRunTime, callRenderAfterPoll) {
   /* Return back, this has been called more than once */
@@ -253,12 +254,23 @@ define('tools.querytool', [
         content: '<div id ="notification_grid" class="sql-editor-notifications" tabindex: "0"></div>',
       });
 
+      var map_view = new pgAdmin.Browser.Panel({
+        name: 'map_view',
+        title: gettext('Map View'),
+        width: '100%',
+        height: '100%',
+        isCloseable: false,
+        isPrivate: true,
+        content: '<div id="map_view"></div>',
+      });
+
       // Load all the created panels
       data_output.load(main_docker);
       explain.load(main_docker);
       messages.load(main_docker);
       history.load(main_docker);
       notifications.load(main_docker);
+      map_view.load(main_docker);
 
       // Add all the panels to the docker
       self.data_output_panel = main_docker.addPanel('data_output', wcDocker.DOCK.BOTTOM, sql_panel_obj);
@@ -266,9 +278,11 @@ define('tools.querytool', [
       self.messages_panel = main_docker.addPanel('messages', wcDocker.DOCK.STACKED, self.data_output_panel);
       self.notifications_panel = main_docker.addPanel('notifications', wcDocker.DOCK.STACKED, self.data_output_panel);
       self.history_panel = main_docker.addPanel('history', wcDocker.DOCK.STACKED, self.data_output_panel);
+      self.map_view_panel = main_docker.addPanel('map_view', wcDocker.DOCK.STACKED, self.data_output_panel);
 
       self.render_history_grid();
       queryToolNotifications.renderNotificationsGrid(self.notifications_panel);
+      self.render_map_view();
 
       if (!self.handler.is_new_browser_tab) {
         // Listen on the panel closed event and notify user to save modifications.
@@ -1211,6 +1225,16 @@ define('tools.querytool', [
       self.history_panel.on(wcDocker.EVENT.VISIBILITY_CHANGED, function() {
         historyComponent.refocus();
       });
+    },
+
+    /* This function is responsible to create and render the
+     * map_view panel
+     */
+    render_map_view: function(){
+      var mapViewCollectionReactElement = React.createElement(
+        mapView.MapView
+      );
+      ReactDOM.render(mapViewCollectionReactElement, $('#map_view')[0]);
     },
 
     // Callback function for Add New Row button click.
