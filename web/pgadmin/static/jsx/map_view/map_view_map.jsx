@@ -26,29 +26,25 @@ export default class MapViewMap extends React.Component{
 
   componentDidMount(){
     if (this.props.geometries.length >= 1){
-      alert(this.props.geometries);
       var vectorSource = new Vector({
         features: new GeoJSON().readFeatures(this.props.geometries),
       });
-      alert(vectorSource);
+      new Map({
+        target: 'olmap',
+        layers: [
+          new Tile({
+            source: new OSM(),
+          }),
+          new Vector({
+            source: vectorSource,
+          }),
+        ],
+        view: new View({
+          center: [0, 0],
+          zoom: 2,
+        }),
+      });
     }
-
-
-    new Map({
-      target: 'olmap',
-      layers: [
-        new Tile({
-          source: new OSM(),
-        }),
-        new Vector({
-          source: vectorSource,
-        }),
-      ],
-      view: new View({
-        center: [0, 0],
-        zoom: 2,
-      }),
-    });
   }
 
   render(){
@@ -57,7 +53,6 @@ export default class MapViewMap extends React.Component{
     );
   }
 }
-
 
 MapViewMap.propTypes = {
   geometries: PropTypes.array.isRequired,

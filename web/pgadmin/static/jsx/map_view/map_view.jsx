@@ -12,8 +12,8 @@
 import React from 'react';
 import SplitPane from 'react-split-pane';
 import MapViewMap from './map_view_map';
-import Geometry from 'wkx';
-import Buffer from 'buffer';
+import {Geometry} from 'wkx';
+import {Buffer} from 'buffer';
 import Shapes from '../react_shapes';
 import _ from 'underscore';
 
@@ -36,18 +36,24 @@ export default class MapView extends React.Component {
   componentWillMount() {
 
     this.props.queryResult.onChange((columns, resultData) => {
+      //alert(resultData);
       var _geoColumns =  _.filter(columns, function(column){
-        return column.column_type === 'geometry' || column.column_type === 'geography';
+        return column.column_type === 'geography';
       });
+      alert('geocolumn name: ' + _geoColumns[0].name);
 
       if (_geoColumns.length >= 1){
         var first_index = columns.indexOf(_geoColumns[0]);
-        if (first_index) {
-          alert(columns);
-          alert(first_index);
+        alert('first_index: '+first_index);
+
+        if (first_index >= 0) {
           var _geometries = _.map(resultData, function (row) {
-            return this.parse_geometry(row[first_index]);
+            var geometry_hex = row[first_index];
+            var wkbBuffer = new Buffer(geometry_hex, 'hex');
+            var geometry = Geometry.parse(wkbBuffer).toGeoJSON();
+            return geometry;
           });
+          alert(_geometries);
           this.setState({
             geoColumns: _geoColumns,
             selectColumn: first_index,
@@ -57,13 +63,6 @@ export default class MapView extends React.Component {
       }
 
     });
-
-  }
-
-  parse_geometry(geometry_hex) {
-    var wkbBuffer = new Buffer(geometry_hex, 'hex');
-    var geometry = Geometry.parse(wkbBuffer).toGeoJSON();
-    return geometry;
   }
 
   render() {
