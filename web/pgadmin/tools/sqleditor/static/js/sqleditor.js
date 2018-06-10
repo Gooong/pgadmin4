@@ -17,6 +17,7 @@ define('tools.querytool', [
   'sources/sqleditor/filter_dialog',
   'sources/history/index.js',
   'sources/../jsx/history/query_history',
+  'sources/mapview/index.js',
   'sources/../jsx/map_view/map_view',
   'react', 'react-dom',
   'sources/keyboard_shortcuts',
@@ -37,7 +38,7 @@ define('tools.querytool', [
   babelPollyfill, gettext, url_for, $, _, S, alertify, pgAdmin, Backbone, codemirror,
   pgExplain, GridSelector, ActiveCellCapture, clipboard, copyData, RangeSelectionHelper, handleQueryOutputKeyboardEvent,
   XCellSelectionModel, setStagedRows, SqlEditorUtils, ExecuteQuery, httpErrorHandler, FilterHandler,
-  HistoryBundle, queryHistory, mapView, React, ReactDOM,
+  HistoryBundle, queryHistory, MapViewBundle, mapView, React, ReactDOM,
   keyboardShortcuts, queryToolActions, queryToolNotifications, Datagrid,
   modifyAnimation, calculateQueryRunTime, callRenderAfterPoll) {
   /* Return back, this has been called more than once */
@@ -1231,9 +1232,13 @@ define('tools.querytool', [
      * map_view panel
      */
     render_map_view: function(){
+      var self = this;
+      self.query_result_object = new MapViewBundle.QueryResult([], []);
+
       var mapViewCollectionReactElement = React.createElement(
-        mapView.MapView
-      );
+        mapView.MapView, {
+          queryResult:self.query_result_object,
+        });
       ReactDOM.render(mapViewCollectionReactElement, $('#map_view')[0]);
     },
 
@@ -2333,6 +2338,7 @@ define('tools.querytool', [
                     self.can_edit, self.client_primary_key, data.rows_affected);
                 }, 10
               );
+              self.gridView.query_result_object.update(self.columns, data.result);
             }
 
             // Hide the loading icon

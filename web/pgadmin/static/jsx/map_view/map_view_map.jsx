@@ -8,33 +8,40 @@
 //////////////////////////////////////////////////////////////////////////
 
 import React from 'react';
-//import ol from 'ol';
+import PropTypes from 'prop-types';
 
 import Map from 'ol/map';
 import Tile from 'ol/layer/tile';
 import View from 'ol/view';
 //import proj from 'ol/proj';
 import OSM from 'ol/source/osm';
+import GeoJSON from 'ol/format/geojson';
+import Vector from 'ol/source/vector';
 //import 'ol/ol.css';
 
 export default class MapViewMap extends React.Component{
   constructor(props) {
     super(props);
-
-    this.state = {
-      collecction:[],
-      columns:[],
-      selected_rows: [],
-    };
-
   }
 
   componentDidMount(){
-    let olmap = new Map({
-      target: 'openlayers_map',
+    if (this.props.geometries.length >= 1){
+      alert(this.props.geometries);
+      var vectorSource = new Vector({
+        features: new GeoJSON().readFeatures(this.props.geometries),
+      });
+      alert(vectorSource);
+    }
+
+
+    new Map({
+      target: 'olmap',
       layers: [
         new Tile({
           source: new OSM(),
+        }),
+        new Vector({
+          source: vectorSource,
         }),
       ],
       view: new View({
@@ -42,17 +49,16 @@ export default class MapViewMap extends React.Component{
         zoom: 2,
       }),
     });
-    olmap.render();
   }
 
   render(){
     return(
-      <div id='openlayers_map'></div>
+      <div id='olmap'></div>
     );
   }
 }
 
 
 MapViewMap.propTypes = {
-
+  geometries: PropTypes.array.isRequired,
 };

@@ -25,7 +25,15 @@ let historyCollectionClass =
     onChange: PropTypes.func.isRequired,
   });
 
+let queryResultClass =
+  PropTypes.shape({
+    columns: PropTypes.array.isRequired,
+    resultData: PropTypes.array.isRequired,
+    onChange: PropTypes.func.isRequired,
+  });
+
 export default {
   historyDetail,
   historyCollectionClass,
+  queryResultClass,
 };
