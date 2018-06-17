@@ -47,13 +47,27 @@ export default class MapView extends React.Component {
         alert('first_index: '+first_index);
 
         if (first_index >= 0) {
-          var _geometries = _.map(resultData, function (row) {
+          var geometries = _.map(resultData, function (row) {
             var geometry_hex = row[first_index];
             var wkbBuffer = new Buffer(geometry_hex, 'hex');
-            var geometry = Geometry.parse(wkbBuffer).toGeoJSON();
-            return geometry;
+            var geometry = Geometry.parse(wkbBuffer);
+
+            if (typeof (geometry.srid) == 'undefined'){
+              geometry.srid = 0;
+            }
+            return geometry.toGeoJSON();
           });
-          alert(_geometries);
+
+          var srid_geometries = _.groupBy(geometries, 'srid');
+          var sg_pairs = _.pairs(srid_geometries);
+          // Find the srid with most geometries
+          var most_pair = _.map(sg_pairs, function (pair) {
+            return pair[1].length;
+          });
+
+          // _srid = pair[0];
+          var _geometries = most_pair[1];
+
           this.setState({
             geoColumns: _geoColumns,
             selectColumn: first_index,
