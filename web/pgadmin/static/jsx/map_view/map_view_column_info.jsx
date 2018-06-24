@@ -9,24 +9,20 @@
 
 import React from 'react';
 import PropTypes from 'prop-types';
-import MapViewColumnInfo from 'map_view_column_info';
 
-export default class MapViewColumnOption extends React.Component{
+
+export default class MapViewColumnInfo extends React.Component{
   constructor(props) {
     super(props);
   }
 
   render(){
     return(
-      <div id='map_view_column_option'>
-        {this.geoColumns.map((column_info) =>
-          <MapViewColumnInfo columnInfo={column_info} />
-        )}
-      </div>
+      <div>{this.columnInfo.display_name}</div>
     );
   }
 }
 
-MapViewColumnOption.propTypes = {
-  geoColumns: PropTypes.array.isRequired,
+MapViewColumnInfo.propTypes = {
+  columnInfo: PropTypes.object.isRequired,
 };

@@ -12,6 +12,7 @@
 import React from 'react';
 import SplitPane from 'react-split-pane';
 import MapViewMap from './map_view_map';
+import MapViewColumnOption from './map_view_column_option';
 import {Geometry} from 'wkx';
 import {Buffer} from 'buffer';
 import Shapes from '../react_shapes';
@@ -36,15 +37,14 @@ export default class MapView extends React.Component {
   componentWillMount() {
 
     this.props.queryResult.onChange((columns, resultData) => {
-      //alert(resultData);
       var _geoColumns =  _.filter(columns, function(column){
         return column.column_type === 'geography';
       });
-      alert('geocolumn name: ' + _geoColumns[0].name);
+      //alert('geocolumn name: ' + _geoColumns[0].name);
 
       if (_geoColumns.length >= 1){
         var first_index = columns.indexOf(_geoColumns[0]);
-        alert('first_index: '+first_index);
+        //alert('first_index: '+first_index);
 
         if (first_index >= 0) {
           var geometries = _.map(resultData, function (row) {
@@ -83,7 +83,7 @@ export default class MapView extends React.Component {
     return (
       <SplitPane defaultSize='30%' split='vertical' pane1Style={queryEntryListDivStyle}>
         <SplitPane split='horizontal'>
-          <div><p>Column Options</p></div>
+          <MapViewColumnOption geoColumns = {this.state.geoColumns}/>
           <div><p>Property Table</p></div>
         </SplitPane>
         <MapViewMap geometries = {this.state.geometries}/>
