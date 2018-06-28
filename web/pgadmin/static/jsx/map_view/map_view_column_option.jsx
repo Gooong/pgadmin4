@@ -19,7 +19,7 @@ export default class MapViewColumnOption extends React.Component{
   render(){
     return(
       <div id='map_view_column_option'>
-        {this.geoColumns.map((column_info) =>
+        {this.props.geoColumns.map((column_info) =>
           <MapViewColumnInfo columnInfo={column_info} />
         )}
       </div>

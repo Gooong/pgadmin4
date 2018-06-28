@@ -18,7 +18,7 @@ export default class MapViewColumnInfo extends React.Component{
 
   render(){
     return(
-      <div>{this.columnInfo.display_name}</div>
+      <div>{this.props.columnInfo.display_name}</div>
     );
   }
 }

@@ -23,6 +23,8 @@
 @import '~slickgrid/slick-default-theme.css';
 @import '~slickgrid/css/smoothness/jquery-ui-1.11.3.custom.css';
 
+@import '~ol/ol.css';
+
 @import '../../preferences/static/css/preferences.css';
 @import '../../browser/static/css/browser.css';
 @import '../../dashboard/static/css/dashboard.css';
