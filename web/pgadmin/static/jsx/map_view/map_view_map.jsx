@@ -28,46 +28,57 @@ var ol = require('ol/dist/ol');
 export default class MapViewMap extends React.Component{
   constructor(props) {
     super(props);
-    this.ol_map = new ol.Map({
-      layers: [
-        new ol.layer.Tile({
-          source: new ol.source.OSM(),
-        }),
-      ],
-      view: new ol.View({
-        center: [0, 0],
-        zoom: 2,
-        projection: 'EPSG:4326',
-      }),
+
+    this.backgroundLayer = new ol.layer.Tile({
+      source: new ol.source.OSM(),
     });
+    this.dataLayer = new ol.layer.Vector();
+    this.mapView = new ol.View();
+    this.olMap = new ol.Map({
+      layers:[this.backgroundLayer, this.dataLayer],
+      view: this.mapView,
+    });
+
     this.onResize = this.onResize.bind(this);
   }
 
   componentDidMount(){
-    this.ol_map.setTarget('ol-map');
+    this.olMap.setTarget('ol-map');
   }
 
   componentDidUpdate(){
-    alert(JSON.stringify(this.props.geometries[0]));
+    //alert(JSON.stringify(this.props.geometries[0]));
+
+
+    //render new data in map
     const vectorSource = new ol.source.Vector({
       forrmat:new ol.format.GeoJSON(),
     });
-    var format = new ol.format.GeoJSON();
-    var features = _.map(this.props.geometries, function (geometry) {
-      var geom = format.readFeature(geometry);
+    let format = new ol.format.GeoJSON();
+    let features = _.map(this.props.geometries, function (geometry) {
+      let geom = format.readFeature(geometry);
       return geom;
     });
     vectorSource.addFeatures(features);
-    var new_layer = new ol.layer.Vector({
-      source: vectorSource,
+    this.dataLayer.setSource(vectorSource);
+
+    this.renderSRID = this.props.SRID===0? 4326:this.props.SRID;
+    this.mapView = new ol.View({
+      projection:'EPSG:' + this.renderSRID,
+      center:[0,0],
+      zoom:2,
     });
-    this.ol_map.addLayer(new_layer);
+
+    this.olMap.setProperties({
+      layers: [this.dataLayer, this.backgroundLayer],
+      view: this.mapView,
+    });
   }
 
 
   onResize() {
-    var self = this;
-    setTimeout( function() { self.ol_map.updateSize();}, 200);
+    let self = this;
+    setTimeout( function() { self.olMap.updateSize();}, 100);
   }
 
   render(){
@@ -81,4 +92,5 @@ export default class MapViewMap extends React.Component{
 
 MapViewMap.propTypes = {
   geometries: PropTypes.array.isRequired,
+  SRID: PropTypes.number.isRequired,
 };

@@ -16,17 +16,32 @@ export default class MapViewColumnOption extends React.Component{
     super(props);
   }
 
+  retrieveGroup(){
+    return (this.props.geoColumns.map((columnInfo, index) =>
+      <li key={index}
+        className='list-item'
+        tabIndex={0}
+        onClick={() => this.props.onSelectColumn(index)}>
+
+        <MapViewColumnInfo
+          columnInfo={columnInfo}
+          isSelected={index === this.props.selectedGeoColumnIndex}
+        />
+      </li>
+    ));
+  }
+
   render(){
-    return(
-      <div id='map_view_column_option'>
-        {this.props.geoColumns.map((column_info) =>
-          <MapViewColumnInfo columnInfo={column_info} />
-        )}
-      </div>
-    );
+    return (
+      <div id='geo_columns' className="geo-columns">
+        {this.retrieveGroup()}
+      </div>);
+
   }
 }
 
 MapViewColumnOption.propTypes = {
   geoColumns: PropTypes.array.isRequired,
+  selectedGeoColumnIndex: PropTypes.number.isRequired,
+  onSelectColumn: PropTypes.func.isRequired,
 };

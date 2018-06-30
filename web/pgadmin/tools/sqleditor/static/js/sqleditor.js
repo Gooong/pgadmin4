@@ -2336,9 +2336,10 @@ define('tools.querytool', [
                 function() {
                   self.gridView.render_grid(data.result, self.columns,
                     self.can_edit, self.client_primary_key, data.rows_affected);
+                  self.gridView.query_result_object.update(self.columns, data.result);
                 }, 10
               );
-              self.gridView.query_result_object.update(self.columns, data.result);
+
             }
 
             // Hide the loading icon

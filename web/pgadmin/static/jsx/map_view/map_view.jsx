@@ -24,69 +24,101 @@ export default class MapView extends React.Component {
   constructor(props) {
     super(props);
     this.state = {
-      selectColumn:0,
-      geometries: [],
+      resultData:null,
+      columns:null,
       geoColumns: [],
+
+      selectedGeoColumnIndex:-1,
+      selectedSRID:0,
+      selectedGeometries: [],
     };
+    this.selectGeoColumn = this.selectGeoColumn.bind(this);
   }
 
   componentWillMount() {
 
     this.props.queryResult.onChange((columns, resultData) => {
-      var _geoColumns =  _.filter(columns, function(column){
+      let geoColumns =  _.filter(columns, function(column){
         return column.column_type === 'geography' || column.column_type === 'geometry';
       });
-      //alert('geocolumn name: ' + _geoColumns[0].name);
+      this.setState({
+        resultData:resultData,
+        columns:columns,
+        geoColumns:geoColumns,
+      });
 
-      if (_geoColumns.length >= 1){
-        var first_index = columns.indexOf(_geoColumns[0]);
-        alert('first_index: '+first_index);
-
-        if (first_index >= 0) {
-          alert('change');
-          var _geometries = _.map(resultData, function (row) {
-            var geometry_hex = row[first_index];
-            var wkbBuffer = new Buffer(geometry_hex, 'hex');
-            var geometry = Geometry.parse(wkbBuffer);
-
-            if (typeof (geometry.srid) == 'undefined'){
-              geometry.srid = 0;
-            }
-            return geometry.toGeoJSON();
-          });
-          alert(_geometries.length);
-          // var srid_geometries = _.groupBy(geometries, 'srid');
-          // var sg_pairs = _.pairs(srid_geometries);
-          // // Find the srid with most geometries
-          // var most_pair = _.map(sg_pairs, function (pair) {
-          //   return pair[1].length;
-          // });
-          //
-          // // _srid = pair[0];
-          // var _geometries = most_pair[1];
-
-          this.setState({
-            geoColumns: _geoColumns,
-            selectColumn: first_index,
-            geometries: _geometries,
-          });
-        }
+      if(geoColumns.length >= 1){
+        this.selectGeoColumn(0);
       }
-
+      else{
+        this.selectGeoColumn(-1);
+      }
     });
   }
-  updateDimensions() {
-    setTimeout( function() { this.ol_map.updateSize();}, 200);
+
+  // parse EWKT data in selected column.
+  selectGeoColumn(index){
+    //alert('you select geocolumn:' + index);
+    //alert(this.state.geoColumns.length);
+    if (index !== this.state.selectedGeoColumnIndex){
+      if (index >=0 && index < this.state.geoColumns.length){
+        let columnName = this.state.geoColumns[index].name;
+        //alert(columnIndex);
+        //alert(JSON.stringify(this.state.resultData));
+        let wkxGeometries = _.map(this.state.resultData, function (item) {
+          let geometryHex = item[columnName];
+          //alert(geometryHex);
+          let wkbBuffer = new Buffer(geometryHex, 'hex');
+          let geometry = Geometry.parse(wkbBuffer);
+          if (typeof (geometry.srid) === 'undefined'){
+            geometry.srid = 0;
+          }
+          return geometry;
+        });
+
+        // group geometries by SRID
+        let geometriesGroupBySRID = _.groupBy(wkxGeometries, 'srid');
+        let SRIDGeometriesPairs = _.pairs(geometriesGroupBySRID);
+        let selectedPair = _.max(SRIDGeometriesPairs, function (pair) {
+          return pair[1].length;
+        });
+        let geoJSONs = _.map(selectedPair[1], function (geometry) {
+          return geometry.toGeoJSON();
+        });
+        this.setState({
+          selectedGeoColumnIndex:index,
+          selectedSRID:selectedPair[0],
+          selectedGeometries:geoJSONs,
+        });
+      }
+      else{
+        this.setState({
+          selectedGeoColumnIndex:-1,
+          selectedSRID:4326,
+          selectedGeometries:[],
+        });
+      }
+    }
+
   }
+
 
   render() {
     return (
       <SplitPane defaultSize='30%' split='vertical'>
-        <SplitPane split='horizontal'>
-          <MapViewColumnOption geoColumns = {this.state.geoColumns}/>
+        <SplitPane defaultSize='50%' split='horizontal'>
+          <MapViewColumnOption
+            geoColumns = {this.state.geoColumns}
+            selectedGeoColumnIndex = {this.state.selectedGeoColumnIndex}
+            onSelectColumn = {this.selectGeoColumn}
+          />
+
           <div><p>Property Table</p></div>
         </SplitPane>
-        <MapViewMap geometries = {this.state.geometries}/>
+        <MapViewMap
+          geometries = {this.state.selectedGeometries}
+          SRID = {this.state.selectedSRID}
+        />
       </SplitPane>);
   }
 }
