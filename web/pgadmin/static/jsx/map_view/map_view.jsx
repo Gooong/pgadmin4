@@ -71,7 +71,7 @@ export default class MapView extends React.Component {
           let wkbBuffer = new Buffer(geometryHex, 'hex');
           let geometry = Geometry.parse(wkbBuffer);
           if (typeof (geometry.srid) === 'undefined'){
-            geometry.srid = 0;
+            geometry.srid = '0';
           }
           return geometry;
         });
@@ -94,7 +94,7 @@ export default class MapView extends React.Component {
       else{
         this.setState({
           selectedGeoColumnIndex:-1,
-          selectedSRID:4326,
+          selectedSRID:'0',
           selectedGeometries:[],
         });
       }

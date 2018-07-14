@@ -54,44 +54,53 @@ export default class MapViewMap extends React.Component{
     this.olMap.setTarget('ol-map');
   }
 
-  componentDidUpdate(){
-
-    let vectorSource = new ol.source.Vector();
-    let format = new ol.format.GeoJSON();
-    let projection = new ol.proj.Projection({
-      code: 'EPSG:' + this.props.SRID,
-      units: 'm',
-    });
-
-    let features = _.map(this.props.geometries, function (geometry) {
-      return format.readFeature(geometry, {
-        dataProjection: projection,
-        featureProjection: projection,
-      });
-    });
-    vectorSource.addFeatures(features);
-
-    if (features.length > 0){
-      this.dataLayer.setSource(vectorSource);
-
+  componentDidUpdate() {
+    if (this.props.geometries.length > 0) {
       alert(this.props.SRID);
-      alert(features.length);
-      alert(vectorSource.getExtent());
-      if(this.renderSRID !== this.props.SRID){
+      alert(typeof this.props.SRID);
+      let format = new ol.format.GeoJSON();
+      let features = _.map(this.props.geometries, function (geometry) {
+        return format.readFeature(geometry);
+      });
+      let vectorSource = new ol.source.Vector();
+      vectorSource.addFeatures(features);
+      this.dataLayer.setSource(vectorSource);
+      let dataExtent = vectorSource.getExtent();
+
+      let projection;
+      let layers;
+      if (this.props.SRID === '4326' || this.props.SRID === '3857'){
+        projection = ol.proj.get('EPSG:' + this.props.SRID);
+        layers = [this.dataLayer, this.backgroundLayer];
+      }
+      else{
+        projection = new ol.proj.Projection({
+          code: 'EPSG:' + this.props.SRID,
+          extent: dataExtent,
+        });
+        layers = [this.dataLayer];
+      }
+
+      if (this.renderSRID !== this.props.SRID) {
         this.renderSRID = this.props.SRID;
         this.mapView = new ol.View({
           projection: projection,
-          center:[0,0],
+          center: ol.extent.getCenter(dataExtent),
+          zoom: 2,
         });
       }
       this.olMap.setProperties({
-        layers: [this.dataLayer, this.backgroundLayer ],
+        layers: layers,
         view: this.mapView,
       });
-      this.mapView.fit(vectorSource.getExtent(),{duration:500, constrainResolution: false});
+      //this.mapView.fit(vectorSource.getExtent(), {duration: 500, constrainResolution: false});
+    }
+    else {
+      this.olMap.setProperties({
+        layers:[],
+      });
     }
   }
-
 
   onResize() {
     let self = this;

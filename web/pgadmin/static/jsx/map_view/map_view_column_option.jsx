@@ -34,7 +34,9 @@ export default class MapViewColumnOption extends React.Component{
   render(){
     return (
       <div id='geo_columns' className="geo-columns">
-        {this.retrieveGroup()}
+        <ul>
+          {this.retrieveGroup()}
+        </ul>
       </div>);
 
   }
