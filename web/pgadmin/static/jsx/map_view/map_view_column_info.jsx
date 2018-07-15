@@ -35,11 +35,11 @@ export default class MapViewColumnInfo extends React.Component{
     return(
       <div className={'column-info' + (this.props.isSelected?' selected':'')}>
         <div className='column-name'>
-          {'column name: ' + this.props.columnInfo.name}
+          {'\'' + this.props.columnInfo.name + '\'' + ' column'}
         </div>
         <div className='other-info'>
           <div className='column-type'>
-            {'column type: ' + this.props.columnInfo.type}
+            {this.props.columnInfo.type + 'type'}
           </div>
 
         </div>

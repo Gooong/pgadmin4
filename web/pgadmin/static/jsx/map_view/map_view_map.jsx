@@ -36,18 +36,16 @@ export default class MapViewMap extends React.Component{
     this.backgroundLayer = new ol.layer.Tile({
       source: new ol.source.OSM(),
     });
-    this.dataLayer = new ol.layer.Vector({
-      renderMode: 'image',
-    });
+    this.dataLayer = new ol.layer.Vector();
     this.mapView = new ol.View();
-    let selectClick = new ol.interaction.Select({
-      condition:  ol.events.condition.click,
-    });
     this.olMap = new ol.Map({
       layers:[this.backgroundLayer, this.dataLayer],
       view: this.mapView,
     });
-    this.olMap.addInteraction(selectClick);
+    this.selectClick = new ol.interaction.Select({
+      condition:  ol.events.condition.click,
+    });
+    this.olMap.addInteraction(this.selectClick);
   }
 
   componentDidMount(){
@@ -56,15 +54,25 @@ export default class MapViewMap extends React.Component{
 
   componentDidUpdate() {
     if (this.props.geometries.length > 0) {
-      alert(this.props.SRID);
-      alert(typeof this.props.SRID);
+      alert(this.props.clientPrimaryKey);
+      alert(JSON.stringify(this.props.geometries[0]));
+      this.selectClick.un('select');
+      let key = this.props.clientPrimaryKey;
+      this.selectClick.on('select', function (e) {
+        let selectedFeature = e.selected[0];
+        alert(selectedFeature.get(key));
+      });
+
       let format = new ol.format.GeoJSON();
       let features = _.map(this.props.geometries, function (geometry) {
         return format.readFeature(geometry);
       });
       let vectorSource = new ol.source.Vector();
       vectorSource.addFeatures(features);
-      this.dataLayer.setSource(vectorSource);
+      this.dataLayer.setProperties({
+        renderMode:'image',
+        source:vectorSource,
+      });
       let dataExtent = vectorSource.getExtent();
 
       let projection;
@@ -86,6 +94,7 @@ export default class MapViewMap extends React.Component{
         this.mapView = new ol.View({
           projection: projection,
           center: ol.extent.getCenter(dataExtent),
+          minZoom:1,
           zoom: 2,
         });
       }
@@ -119,4 +128,5 @@ export default class MapViewMap extends React.Component{
 MapViewMap.propTypes = {
   geometries: PropTypes.array.isRequired,
   SRID: PropTypes.number.isRequired,
+  clientPrimaryKey: PropTypes.string.isRequired,
 };

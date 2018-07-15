@@ -26,6 +26,7 @@ export default class MapView extends React.Component {
     this.state = {
       resultData:null,
       columns:null,
+      clientPrimaryKey:null,
       geoColumns: [],
 
       selectedGeoColumnIndex:-1,
@@ -37,15 +38,18 @@ export default class MapView extends React.Component {
 
   componentWillMount() {
 
-    this.props.queryResult.onChange((columns, resultData) => {
+    this.props.queryResult.onChange((columns, resultData, clientPrimaryKey) => {
       let geoColumns =  _.filter(columns, function(column){
         return column.column_type === 'geography' || column.column_type === 'geometry';
       });
+
       this.setState({
         resultData:resultData,
         columns:columns,
+        clientPrimaryKey:clientPrimaryKey,
         geoColumns:geoColumns,
       });
+      alert(this.state.clientPrimaryKey);
 
       if(geoColumns.length >= 1){
         this.selectGeoColumn(0);
@@ -60,19 +64,21 @@ export default class MapView extends React.Component {
   selectGeoColumn(index){
     //alert('you select geocolumn:' + index);
     //alert(this.state.geoColumns.length);
+
     if (index !== this.state.selectedGeoColumnIndex){
       if (index >=0 && index < this.state.geoColumns.length){
+        let key = this.state.clientPrimaryKey;
         let columnName = this.state.geoColumns[index].name;
-        //alert(columnIndex);
-        //alert(JSON.stringify(this.state.resultData));
         let wkxGeometries = _.map(this.state.resultData, function (item) {
           let geometryHex = item[columnName];
-          //alert(geometryHex);
           let wkbBuffer = new Buffer(geometryHex, 'hex');
           let geometry = Geometry.parse(wkbBuffer);
           if (typeof (geometry.srid) === 'undefined'){
             geometry.srid = '0';
           }
+          let tmpObj = {};
+          tmpObj[key] = item[key];
+          geometry.properties = tmpObj;
           return geometry;
         });
 
@@ -83,7 +89,9 @@ export default class MapView extends React.Component {
           return pair[1].length;
         });
         let geoJSONs = _.map(selectedPair[1], function (geometry) {
-          return geometry.toGeoJSON();
+          let geojson =  geometry.toGeoJSON();
+          geojson.properties = geometry.properties;
+          return geojson;
         });
         this.setState({
           selectedGeoColumnIndex:index,
@@ -118,6 +126,7 @@ export default class MapView extends React.Component {
         <MapViewMap
           geometries = {this.state.selectedGeometries}
           SRID = {this.state.selectedSRID}
+          clientPrimaryKey = {this.state.clientPrimaryKey}
         />
       </SplitPane>);
   }
