@@ -42,10 +42,17 @@ export default class MapViewMap extends React.Component{
       layers:[this.backgroundLayer, this.dataLayer],
       view: this.mapView,
     });
-    this.selectClick = new ol.interaction.Select({
+
+    let selectClick = new ol.interaction.Select({
       condition:  ol.events.condition.click,
     });
-    this.olMap.addInteraction(this.selectClick);
+    let onSelectFeature = this.props.onSelectFeature;
+    selectClick.on('select', function (e) {
+      if (e.selected.length > 0){
+        onSelectFeature(e.selected[0]);
+      }
+    });
+    this.olMap.addInteraction(selectClick);
   }
 
   componentDidMount(){
@@ -54,21 +61,15 @@ export default class MapViewMap extends React.Component{
 
   componentDidUpdate() {
     if (this.props.geometries.length > 0) {
-      alert(this.props.clientPrimaryKey);
-      alert(JSON.stringify(this.props.geometries[0]));
-      this.selectClick.un('select');
-      let key = this.props.clientPrimaryKey;
-      this.selectClick.on('select', function (e) {
-        let selectedFeature = e.selected[0];
-        alert(selectedFeature.get(key));
-      });
+      // this.selectClick.un('select');
+      // let key = this.props.clientPrimaryKey;
+      // this.selectClick.on('select', function (e) {
+      //   let selectedFeature = e.selected[0];
+      //   alert(selectedFeature.get(key));
+      // });
 
-      let format = new ol.format.GeoJSON();
-      let features = _.map(this.props.geometries, function (geometry) {
-        return format.readFeature(geometry);
-      });
       let vectorSource = new ol.source.Vector();
-      vectorSource.addFeatures(features);
+      vectorSource.addFeatures(this.props.geometries);
       this.dataLayer.setProperties({
         renderMode:'image',
         source:vectorSource,
@@ -128,5 +129,5 @@ export default class MapViewMap extends React.Component{
 MapViewMap.propTypes = {
   geometries: PropTypes.array.isRequired,
   SRID: PropTypes.number.isRequired,
-  clientPrimaryKey: PropTypes.string.isRequired,
+  onSelectFeature: PropTypes.func.isRequired,
 };

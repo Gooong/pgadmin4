@@ -12,9 +12,6 @@ import PropTypes from 'prop-types';
 import MapViewColumnInfo from 'map_view_column_info';
 
 export default class MapViewColumnOption extends React.Component{
-  constructor(props) {
-    super(props);
-  }
 
   retrieveGroup(){
     return (this.props.geoColumns.map((columnInfo, index) =>

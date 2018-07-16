@@ -13,11 +13,14 @@ import React from 'react';
 import SplitPane from 'react-split-pane';
 import MapViewMap from './map_view_map';
 import MapViewColumnOption from './map_view_column_option';
+//import MapViewPropertyTable from './map_view_property_table';
+
 import {Geometry} from 'wkx';
 import {Buffer} from 'buffer';
 import Shapes from '../react_shapes';
+//import ReactTable from 'react-table';
 import _ from 'underscore';
-
+var ol = require('ol/dist/ol.js');
 
 export default class MapView extends React.Component {
 
@@ -30,10 +33,13 @@ export default class MapView extends React.Component {
       geoColumns: [],
 
       selectedGeoColumnIndex:-1,
-      selectedSRID:0,
+      selectedSRID: 0,
       selectedGeometries: [],
+
+      selectedItem: {},
     };
     this.selectGeoColumn = this.selectGeoColumn.bind(this);
+    this.selectFeature = this.selectFeature.bind(this);
   }
 
   componentWillMount() {
@@ -62,12 +68,9 @@ export default class MapView extends React.Component {
 
   // parse EWKT data in selected column.
   selectGeoColumn(index){
-    //alert('you select geocolumn:' + index);
-    //alert(this.state.geoColumns.length);
-
     if (index !== this.state.selectedGeoColumnIndex){
       if (index >=0 && index < this.state.geoColumns.length){
-        let key = this.state.clientPrimaryKey;
+        let geometryItemDict = new Map();
         let columnName = this.state.geoColumns[index].name;
         let wkxGeometries = _.map(this.state.resultData, function (item) {
           let geometryHex = item[columnName];
@@ -76,9 +79,7 @@ export default class MapView extends React.Component {
           if (typeof (geometry.srid) === 'undefined'){
             geometry.srid = '0';
           }
-          let tmpObj = {};
-          tmpObj[key] = item[key];
-          geometry.properties = tmpObj;
+          geometryItemDict.set(geometry, item);
           return geometry;
         });
 
@@ -88,15 +89,22 @@ export default class MapView extends React.Component {
         let selectedPair = _.max(SRIDGeometriesPairs, function (pair) {
           return pair[1].length;
         });
-        let geoJSONs = _.map(selectedPair[1], function (geometry) {
+
+        let format = new ol.format.GeoJSON();
+        let featureItemDict = new Map();
+        let features = _.map(selectedPair[1], function (geometry) {
           let geojson =  geometry.toGeoJSON();
-          geojson.properties = geometry.properties;
-          return geojson;
+          let feature = format.readFeature(geojson);
+          featureItemDict.set(feature, geometryItemDict.get(geometry));
+          return feature;
         });
+        //alert(JSON.stringify(Object.keys(featureItemDict)));
+        this.featureItemDict = featureItemDict;
+
         this.setState({
           selectedGeoColumnIndex:index,
           selectedSRID:selectedPair[0],
-          selectedGeometries:geoJSONs,
+          selectedGeometries:features,
         });
       }
       else{
@@ -110,8 +118,29 @@ export default class MapView extends React.Component {
 
   }
 
+  selectFeature(feature){
+    //alert(JSON.stringify(this.featureItemDict[feature]));
+    let propertyData = [];
+    let item = this.featureItemDict.get(feature);
+    for (var p in item){
+      if (p !== this.state.clientPrimaryKey){
+        propertyData.push({
+          property: p,
+          value: item[p],
+        });
+      }
+    }
+    this.setState({
+      selectedItem: propertyData,
+    });
+  }
+
 
   render() {
+    // let column = [
+    //   {header:'Property', accessor:'property'},
+    //   {header:'Value', accessor:'value'},
+    // ];
     return (
       <SplitPane defaultSize='30%' split='vertical'>
         <SplitPane defaultSize='50%' split='horizontal'>
@@ -120,13 +149,14 @@ export default class MapView extends React.Component {
             selectedGeoColumnIndex = {this.state.selectedGeoColumnIndex}
             onSelectColumn = {this.selectGeoColumn}
           />
-
-          <div><p>Property Table</p></div>
+          {/*<MapViewPropertyTable item={this.state.selectedItem}/>*/}
+          <div>{JSON.stringify(this.state.selectedItem)}</div>
+          {/*<ReactTable data = {this.state.selectedItem} columns={column}/>*/}
         </SplitPane>
         <MapViewMap
           geometries = {this.state.selectedGeometries}
           SRID = {this.state.selectedSRID}
-          clientPrimaryKey = {this.state.clientPrimaryKey}
+          onSelectFeature = {this.selectFeature}
         />
       </SplitPane>);
   }

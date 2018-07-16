@@ -12,10 +12,6 @@ import PropTypes from 'prop-types';
 
 
 export default class MapViewColumnInfo extends React.Component{
-  constructor(props) {
-    super(props);
-  }
-
   // col = {
   // 'name': c.name,
   // 'display_name': c.display_name,
@@ -39,7 +35,7 @@ export default class MapViewColumnInfo extends React.Component{
         </div>
         <div className='other-info'>
           <div className='column-type'>
-            {this.props.columnInfo.type + 'type'}
+            {this.props.columnInfo.type + ' type'}
           </div>
 
         </div>
