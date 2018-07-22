@@ -15,6 +15,7 @@
         'Checkmark': CheckmarkFormatter,
         'Text': TextFormatter,
         'Binary': BinaryFormatter,
+        'EWKB': EWKBFormatter,
       },
     },
   });
@@ -109,6 +110,19 @@
       return data;
     } else {
       return '<span class=\'pull-left disabled_cell\'>[' + _.escape(value) + ']</span>';
+    }
+  }
+
+  function EWKBFormatter(row, cell, value, columnDef, dataContext) {
+    // If column has default value, set placeholder
+    var data = NullAndDefaultFormatter(row, cell, value, columnDef, dataContext);
+    if (data) {
+      return data;
+    } else {
+      return '<button title="View Geometry" style="float: right; position: relative" class="btn-xs btn-default btn-view-geometry">' +
+        '<i class="fa fa-eye btn-view-geometry" aria-hidden="true"></i>' +
+        '</button>' +
+        _.escape(value);
     }
   }
 })(window.jQuery);

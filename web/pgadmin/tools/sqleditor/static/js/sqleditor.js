@@ -15,6 +15,7 @@ define('tools.querytool', [
   'sources/sqleditor/execute_query',
   'sources/sqleditor/query_tool_http_error_handler',
   'sources/sqleditor/filter_dialog',
+  'sources/sqleditor/geometry_viewer',
   'sources/history/index.js',
   'sources/../jsx/history/query_history',
   'react', 'react-dom',
@@ -35,7 +36,7 @@ define('tools.querytool', [
 ], function(
   babelPollyfill, gettext, url_for, $, _, S, alertify, pgAdmin, Backbone, codemirror,
   pgExplain, GridSelector, ActiveCellCapture, clipboard, copyData, RangeSelectionHelper, handleQueryOutputKeyboardEvent,
-  XCellSelectionModel, setStagedRows, SqlEditorUtils, ExecuteQuery, httpErrorHandler, FilterHandler,
+  XCellSelectionModel, setStagedRows, SqlEditorUtils, ExecuteQuery, httpErrorHandler, FilterHandler, GeometryViewer,
   HistoryBundle, queryHistory, React, ReactDOM,
   keyboardShortcuts, queryToolActions, queryToolNotifications, Datagrid,
   modifyAnimation, calculateQueryRunTime, callRenderAfterPoll) {
@@ -110,6 +111,8 @@ define('tools.querytool', [
       // Indentation options
       'click #btn-indent-code': 'on_indent_code',
       'click #btn-unindent-code': 'on_unindent_code',
+
+      //'click .btn-show-geometry': 'on_show_geometry',
     },
 
     // This function is used to render the template.
@@ -718,7 +721,13 @@ define('tools.querytool', [
         } else if (c.cell == 'binary') {
           // We do not support editing binary data in SQL editor and data grid.
           options['formatter'] = Slick.Formatters.Binary;
-        } else {
+        } else if (c.cell == 'geometry' || c.cell == 'geography' ){
+          //options['formatter'] =  GeometryViewer.geo_formatter;
+          options['editor'] = is_editable ? Slick.Editors.pgText :
+            Slick.Editors.ReadOnlypgText;
+          options['formatter'] =  Slick.Formatters.EWKB;
+        }
+        else {
           options['editor'] = is_editable ? Slick.Editors.pgText :
             Slick.Editors.ReadOnlypgText;
           options['formatter'] = Slick.Formatters.Text;
@@ -751,6 +760,13 @@ define('tools.querytool', [
 
       var dataView = self.dataView = new Slick.Data.DataView(),
         grid = self.grid = new Slick.Grid($data_grid, dataView, grid_columns, grid_options);
+      grid.onClick.subscribe(function (e, args) {
+        if ($(e.target).hasClass('btn-view-geometry') || $(e.target).parent().hasClass('btn-view-geometry')) {
+          //render geometry viewer panel
+          var value = dataView.getItem(args.row)[grid.getColumns()[args.cell].field];
+          GeometryViewer.show_viewer(value);
+        }
+      });
 
       // Add-on function which allow us to identify the faulty row after insert/update
       // and apply css accordingly
@@ -1350,6 +1366,10 @@ define('tools.querytool', [
         self.handler
       );
     },
+
+    // on_show_geometry: function (objBtn) {
+    //   GeometryViewer.show_viewer(objBtn);
+    // },
 
     // Callback function for include filter button click.
     on_include_filter: function(ev) {
@@ -2412,6 +2432,12 @@ define('tools.querytool', [
           case 'bytea':
           case 'bytea[]':
             col_cell = 'binary';
+            break;
+          case 'geometry':
+            col_cell = 'geometry';
+            break;
+          case 'geography':
+            col_cell = 'geography';
             break;
           default:
             col_cell = 'string';
