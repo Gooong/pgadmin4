@@ -3,15 +3,14 @@ import Alertify from 'pgadmin.alertifyjs';
 import {Geometry} from 'wkx';
 import {Buffer} from 'buffer';
 import $ from 'jquery';
+import elementResizeDetectorMaker from 'element-resize-detector';
+
 import L from 'leaflet';
 import marker from 'leaflet/dist/images/marker-icon.png';
 import marker2x from 'leaflet/dist/images/marker-icon-2x.png';
 import markerShadow from 'leaflet/dist/images/marker-shadow.png';
 import layer from 'leaflet/dist/images/layers.png';
 import layer2x from 'leaflet/dist/images/layers-2x.png';
-
-import elementResizeDetectorMaker from 'element-resize-detector';
-
 
 // fix the icon url issue according to https://github.com/PaulLeCam/react-leaflet/issues/255
 marker,marker2x,markerShadow,layer,layer2x;
@@ -22,7 +21,7 @@ let GeometryViewer = {
     Alertify.mapDialog || Alertify.dialog('mapDialog',function(){
       var $container = $('<div id="geometry-viewer-map" style="width: 100%; height: 100%"></div>');
       var erd = elementResizeDetectorMaker();
-      var   geometryLayer = L.geoJSON();
+      var geometryLayer = L.geoJSON();
       var osmLayer = L.tileLayer( 'http://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
       });
@@ -33,8 +32,9 @@ let GeometryViewer = {
           let wkbBuffer = new Buffer(data, 'hex');
           let geometry = Geometry.parse(wkbBuffer);
           geometryLayer.clearLayers();
-          alert(JSON.stringify(geometry.toGeoJSON()));
+          //alert(JSON.stringify(geometry.toGeoJSON()));
           geometryLayer.addData(geometry.toGeoJSON());
+          mymap.fitBounds(geometryLayer.getBounds());
         },
         setup:function(){
           return {
