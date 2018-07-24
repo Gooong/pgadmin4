@@ -1,3 +1,12 @@
+/////////////////////////////////////////////////////////////
+//
+// pgAdmin 4 - PostgreSQL Tools
+//
+// Copyright (C) 2013 - 2018, The pgAdmin Development Team
+// This software is released under the PostgreSQL Licence
+//
+//////////////////////////////////////////////////////////////
+
 import gettext from 'sources/gettext';
 import Alertify from 'pgadmin.alertifyjs';
 import {Geometry} from 'wkx';
@@ -12,6 +21,7 @@ import marker2x from 'leaflet/dist/images/marker-icon-2x.png';
 import markerShadow from 'leaflet/dist/images/marker-shadow.png';
 import layer from 'leaflet/dist/images/layers.png';
 import layer2x from 'leaflet/dist/images/layers-2x.png';
+
 marker, marker2x, markerShadow, layer, layer2x;
 
 
@@ -37,32 +47,39 @@ let GeometryViewerDialog = {
           });
 
           geomLayer.addData(geometry.toGeoJSON());
-          let bounds = geomLayer.getBounds().pad(0.1);
-          let maxLength = Math.max(bounds.getNorth() - bounds.getSouth(), bounds.getEast() - bounds.getWest());
-          if (geometry.srid === 4326) {
-            lmap.options.crs = L.CRS.EPSG3857;
-            lmap.setMinZoom(0);
-            osmLayer.addTo(lmap);
-          }
-          else {
-            lmap.options.crs = L.CRS.Simple;
-            alert(JSON.stringify(bounds));
-            if (maxLength >= 180) {
-              // calculate the min zoom level to enable the map to fit the whole geometry.
-              let minZoom = Math.floor(Math.log2(360 / maxLength)) - 2;
-              lmap.setMinZoom(minZoom);
+          let bounds = geomLayer.getBounds();
+          if (bounds.isValid()) {
+            bounds = bounds.pad(0.1);
+            let maxLength = Math.max(bounds.getNorth() - bounds.getSouth(),
+              bounds.getEast() - bounds.getWest());
+            if (geometry.srid === 4326) {
+              lmap.options.crs = L.CRS.EPSG3857;
+              lmap.setMinZoom(0);
+              osmLayer.addTo(lmap);
             }
             else {
-              lmap.setMinZoom(0);
+              lmap.options.crs = L.CRS.Simple;
+              if (maxLength >= 180) {
+                // calculate the min zoom level to enable the map to fit the whole geometry.
+                let minZoom = Math.floor(Math.log2(360 / maxLength)) - 2;
+                lmap.setMinZoom(minZoom);
+              }
+              else {
+                lmap.setMinZoom(0);
+              }
+            }
+            geomLayer.addTo(lmap);
+
+            if (maxLength > 0) {
+              lmap.fitBounds(bounds);
+            }
+            else {
+              lmap.setView(bounds.getCenter(), 5);
             }
           }
-          geomLayer.addTo(lmap);
-
-          if (maxLength > 0) {
-            lmap.fitBounds(bounds);
-          }
-          else {
-            lmap.setView(bounds.getCenter(), 5);
+          else{
+            // empty geometry
+            lmap.setView([0,0],0);
           }
         },
 
@@ -109,13 +126,12 @@ let GeometryViewerDialog = {
       Alertify.alert(gettext('Geometry Viewer Error'), gettext('Can not render geometry of this type'));
     }
 
-    if (!geometry.hasZ) {
-      Alertify.mapDialog(geometry);
-    }
-    else {
+    if (geometry.hasZ) {
       Alertify.alert(gettext('Geometry Viewer Error'), gettext('Can not render 3d geometry'));
     }
-
+    else {
+      Alertify.mapDialog(geometry);
+    }
   },
 
 };
