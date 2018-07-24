@@ -36,7 +36,7 @@ define('tools.querytool', [
 ], function(
   babelPollyfill, gettext, url_for, $, _, S, alertify, pgAdmin, Backbone, codemirror,
   pgExplain, GridSelector, ActiveCellCapture, clipboard, copyData, RangeSelectionHelper, handleQueryOutputKeyboardEvent,
-  XCellSelectionModel, setStagedRows, SqlEditorUtils, ExecuteQuery, httpErrorHandler, FilterHandler, GeometryViewer,
+  XCellSelectionModel, setStagedRows, SqlEditorUtils, ExecuteQuery, httpErrorHandler, FilterHandler, GeometryViewerDialog,
   HistoryBundle, queryHistory, React, ReactDOM,
   keyboardShortcuts, queryToolActions, queryToolNotifications, Datagrid,
   modifyAnimation, calculateQueryRunTime, callRenderAfterPoll) {
@@ -761,10 +761,10 @@ define('tools.querytool', [
       var dataView = self.dataView = new Slick.Data.DataView(),
         grid = self.grid = new Slick.Grid($data_grid, dataView, grid_columns, grid_options);
       grid.onClick.subscribe(function (e, args) {
-        if ($(e.target).hasClass('btn-view-geometry') || $(e.target).parent().hasClass('btn-view-geometry')) {
+        if ($(e.target).hasClass('btn-view-ewkb-enabled') || $(e.target).parent().hasClass('btn-view-ewkb-enabled')) {
           //render geometry viewer panel
           var value = dataView.getItem(args.row)[grid.getColumns()[args.cell].field];
-          GeometryViewer.show_viewer(value);
+          GeometryViewerDialog.dialog(value);
         }
       });
 

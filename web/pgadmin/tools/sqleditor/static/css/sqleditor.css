@@ -625,3 +625,20 @@ input.editor-checkbox:focus {
 .data_sorting_dialog .data_sorting {
   padding: 10px 0px;
 }
+
+/* For slickgrid EWKB data viewer button */
+.btn-ewkb-viewer{
+  float: right;
+  position: relative;
+}
+
+/* For EWKB data viewer dialog */
+.ewkb-viewer-container{
+  width: 100%;
+  height: 100%;
+}
+
+/* For leaflet map background */
+.leaflet-container {
+    background: #fff;
+}
