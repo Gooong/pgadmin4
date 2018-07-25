@@ -729,9 +729,9 @@ define('tools.querytool', [
           // We do not support editing binary data in SQL editor and data grid.
           options['formatter'] = Slick.Formatters.Binary;
         } else if (c.cell == 'geometry' || c.cell == 'geography' ){
-          //options['formatter'] =  GeometryViewer.geo_formatter;
           options['editor'] = is_editable ? Slick.Editors.pgText :
             Slick.Editors.ReadOnlypgText;
+          // EWKB formatter for viewing geometry data.
           options['formatter'] =  Slick.Formatters.EWKB;
         }
         else {
