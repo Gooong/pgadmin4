@@ -7,7 +7,7 @@
 import {Geometry} from 'wkx';
 import {Buffer} from 'buffer';
 
-(function ($) {
+(function($) {
   // register namespace
   $.extend(true, window, {
     'Slick': {
@@ -57,7 +57,7 @@ import {Buffer} from 'buffer';
         return _.escape(JSON.stringify(value));
       } else if (Array.isArray(value)) {
         var temp = [];
-        $.each(value, function (i, val) {
+        $.each(value, function(i, val) {
           if (typeof val === 'object') {
             temp.push(JSON.stringify(val));
           } else {

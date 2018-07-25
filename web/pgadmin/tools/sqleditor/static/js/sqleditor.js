@@ -1365,10 +1365,6 @@ define('tools.querytool', [
       );
     },
 
-    // on_show_geometry: function (objBtn) {
-    //   GeometryViewer.show_viewer(objBtn);
-    // },
-
     // Callback function for include filter button click.
     on_include_filter: function(ev) {
       var self = this;
