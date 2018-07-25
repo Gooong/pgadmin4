@@ -1,8 +1,8 @@
 define('pgadmin.node.synonym', [
   'sources/gettext', 'sources/url_for', 'jquery', 'underscore',
   'underscore.string', 'sources/pgadmin', 'pgadmin.browser', 'pgadmin.alertifyjs',
-  'pgadmin.browser.collection',
-], function(gettext, url_for, $, _, S, pgAdmin, pgBrowser, alertify) {
+  'pgadmin.node.schema.dir/child', 'pgadmin.browser.collection',
+], function(gettext, url_for, $, _, S, pgAdmin, pgBrowser, alertify, schemaChild) {
 
   if (!pgBrowser.Nodes['coll-synonym']) {
     pgAdmin.Browser.Nodes['coll-synonym'] =
@@ -15,7 +15,7 @@ define('pgadmin.node.synonym', [
   }
 
   if (!pgBrowser.Nodes['synonym']) {
-    pgAdmin.Browser.Nodes['synonym'] = pgBrowser.Node.extend({
+    pgAdmin.Browser.Nodes['synonym'] = schemaChild.SchemaChildNode.extend({
       type: 'synonym',
       dialogHelp: url_for('help.static', {'filename': 'synonym_dialog.html'}),
       label: gettext('Synonym'),
@@ -52,7 +52,6 @@ define('pgadmin.node.synonym', [
         ]);
 
       },
-      canDrop: pgBrowser.Nodes['schema'].canChildDrop,
       model: pgAdmin.Browser.Node.Model.extend({
         isNew: function() {
           return !this.fetchFromServer;
@@ -155,17 +154,15 @@ define('pgadmin.node.synonym', [
               cache: false,
               async: false,
               data: {'trgTyp' : trgTyp, 'trgSchema' : trgSchema},
-
-                  // On success return function list from server
-              success: function(result) {
-                res = result.data;
-                return res;
-              },
-
-                  // On failure show error appropriate error message to user
-              error: function(xhr, status, error) {
-                alertify.pgRespErrorNotify(xhr, error);
-              },
+            })
+            // On success return function list from server
+            .done(function(result) {
+              res = result.data;
+              return res;
+            })
+            // On failure show error appropriate error message to user
+            .fail(function(xhr, status, error) {
+              alertify.pgRespErrorNotify(xhr, error);
             });
             return res;
           },

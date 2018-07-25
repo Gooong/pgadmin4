@@ -626,6 +626,22 @@ input.editor-checkbox:focus {
   padding: 10px 0px;
 }
 
+.editor-title {
+  width:100%;
+}
+
+.editor-title-connection {
+  width:calc(100% - 43px);
+}
+
+.connection-status-show {
+  display: inline-block;
+}
+
+.connection-status-hide {
+  display: none;
+}
+
 /* For slickgrid EWKB data viewer button */
 .btn-ewkb-viewer{
   float: right;

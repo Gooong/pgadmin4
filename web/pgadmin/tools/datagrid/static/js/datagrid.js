@@ -29,6 +29,23 @@ define('pgadmin.datagrid', [
         this.initialized = true;
         this.title_index = 1;
 
+
+        let self = this;
+        /* Cache may take time to load for the first time
+         * Keep trying till available
+         */
+        let cacheIntervalId = setInterval(function() {
+          if(pgBrowser.preference_version() > 0) {
+            self.preferences = pgBrowser.get_preferences_for_module('sqleditor');
+            clearInterval(cacheIntervalId);
+          }
+        },0);
+
+        pgBrowser.onPreferencesChange('sqleditor', function() {
+          self.preferences = pgBrowser.get_preferences_for_module('sqleditor');
+        });
+
+
         this.spinner_el = '<div class="wcLoadingContainer">'+
               '<div class="wcLoadingBackground"></div>'+
                 '<div class="wcLoadingIconContainer">'+
@@ -279,12 +296,12 @@ define('pgadmin.datagrid', [
                   lineNumbers: true,
                   mode: 'text/x-pgsql',
                   extraKeys: pgBrowser.editor_shortcut_keys,
-                  indentWithTabs: pgAdmin.Browser.editor_options.indent_with_tabs,
-                  indentUnit: pgAdmin.Browser.editor_options.tabSize,
-                  tabSize: pgBrowser.editor_options.tabSize,
-                  lineWrapping: pgAdmin.Browser.editor_options.wrapCode,
-                  autoCloseBrackets: pgAdmin.Browser.editor_options.insert_pair_brackets,
-                  matchBrackets: pgAdmin.Browser.editor_options.brace_matching,
+                  indentWithTabs: !this.preferences.use_spaces,
+                  indentUnit: this.preferences.tab_size,
+                  tabSize: this.preferences.tab_size,
+                  lineWrapping: this.preferences.wrap_code,
+                  autoCloseBrackets: this.preferences.insert_pair_brackets,
+                  matchBrackets: this.preferences.brace_matching,
                 });
 
                 setTimeout(function() {
@@ -306,24 +323,24 @@ define('pgadmin.datagrid', [
                     async: false,
                     contentType: 'application/json',
                     data: JSON.stringify(sql),
-                    success: function(res) {
-                      if (res.data.status) {
-                        // Initialize the data grid.
-                        self.create_transaction(that.baseUrl, null, 'false', parentData.server.server_type, '', grid_title, sql, false);
-                      }
-                      else {
-                        alertify.alert(
-                          gettext('Validation Error'),
-                            res.data.result
-                        );
-                      }
-                    },
-                    error: function(e) {
+                  })
+                  .done(function(res) {
+                    if (res.data.status) {
+                      // Initialize the data grid.
+                      self.create_transaction(that.baseUrl, null, 'false', parentData.server.server_type, '', grid_title, sql, false);
+                    }
+                    else {
                       alertify.alert(
                         gettext('Validation Error'),
-                        e
+                          res.data.result
                       );
-                    },
+                    }
+                  })
+                  .fail(function(e) {
+                    alertify.alert(
+                      gettext('Validation Error'),
+                      e
+                    );
                   });
                 }
               },
@@ -359,35 +376,35 @@ define('pgadmin.datagrid', [
           dataType: 'json',
           data: JSON.stringify(sql_filter),
           contentType: 'application/json',
-          success: function(res) {
-            res.data.is_query_tool = is_query_tool;
-            res.data.server_type = server_type;
-            res.data.sURL = sURL;
-            res.data.panel_title = panel_title;
-            target.trigger('pgadmin-datagrid:transaction:created', res.data);
-          },
-          error: function(xhr) {
-            if (target !== self) {
-              if(xhr.status == 503 && xhr.responseJSON.info != undefined &&
-                  xhr.responseJSON.info == 'CONNECTION_LOST') {
-                setTimeout(function() {
-                  target.handle_connection_lost(true, xhr);
-                });
-                return;
-              }
+        })
+        .done(function(res) {
+          res.data.is_query_tool = is_query_tool;
+          res.data.server_type = server_type;
+          res.data.sURL = sURL;
+          res.data.panel_title = panel_title;
+          target.trigger('pgadmin-datagrid:transaction:created', res.data);
+        })
+        .fail(function(xhr) {
+          if (target !== self) {
+            if(xhr.status == 503 && xhr.responseJSON.info != undefined &&
+                xhr.responseJSON.info == 'CONNECTION_LOST') {
+              setTimeout(function() {
+                target.handle_connection_lost(true, xhr);
+              });
+              return;
             }
+          }
 
-            try {
-              var err = JSON.parse(xhr.responseText);
-              alertify.alert(gettext('Query Tool Initialize Error'),
-                err.errormsg
-              );
-            } catch (e) {
-              alertify.alert(
-                e.statusText, gettext('Query Tool Initialize Error')
-              );
-            }
-          },
+          try {
+            var err = JSON.parse(xhr.responseText);
+            alertify.alert(gettext('Query Tool Initialize Error'),
+              err.errormsg
+            );
+          } catch (e) {
+            alertify.alert(
+              e.statusText, gettext('Query Tool Initialize Error')
+            );
+          }
         });
       },
       launch_grid: function(trans_obj) {
@@ -415,13 +432,20 @@ define('pgadmin.datagrid', [
           }
         }
 
-        if (trans_obj.newBrowserTab) {
+        if (self.preferences.new_browser_tab) {
           var newWin = window.open(baseUrl, '_blank');
 
           // add a load listener to the window so that the title gets changed on page load
           newWin.addEventListener('load', function() {
             newWin.document.title = panel_title;
+
+            /* Set the initial version of pref cache the new window is having
+             * This will be used by the poller to compare with window openers
+             * pref cache version
+             */
+            //newWin.pgAdmin.Browser.preference_version(pgBrowser.preference_version());
           });
+
         } else {
           /* On successfully initialization find the dashboard panel,
            * create new panel and add it to the dashboard panel.

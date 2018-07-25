@@ -2,8 +2,8 @@
 define('pgadmin.node.check_constraint', [
   'sources/gettext', 'sources/url_for', 'jquery', 'underscore',
   'underscore.string', 'sources/pgadmin', 'pgadmin.browser', 'pgadmin.alertifyjs',
-  'pgadmin.browser.collection',
-], function(gettext, url_for, $, _, S, pgAdmin, pgBrowser, alertify) {
+  'pgadmin.node.schema.dir/schema_child_tree_node', 'pgadmin.browser.collection',
+], function(gettext, url_for, $, _, S, pgAdmin, pgBrowser, alertify, schemaChildTreeNode) {
 
   // Check Constraint Node
   if (!pgBrowser.Nodes['check_constraint']) {
@@ -61,27 +61,27 @@ define('pgadmin.node.check_constraint', [
           $.ajax({
             url: obj.generate_url(i, 'validate', d, true),
             type:'GET',
-            success: function(res) {
-              if (res.success == 1) {
-                alertify.success(res.info);
-                t.removeIcon(i);
-                data.valid = true;
-                data.icon = 'icon-check_constraint';
-                t.addIcon(i, {icon: data.icon});
-                setTimeout(function() {t.deselect(i);}, 10);
-                setTimeout(function() {t.select(i);}, 100);
-              }
-            },
-            error: function(xhr, status, error) {
-              alertify.pgRespErrorNotify(xhr, error);
-              t.unload(i);
-            },
+          })
+          .done(function(res) {
+            if (res.success == 1) {
+              alertify.success(res.info);
+              t.removeIcon(i);
+              data.valid = true;
+              data.icon = 'icon-check_constraint';
+              t.addIcon(i, {icon: data.icon});
+              setTimeout(function() {t.deselect(i);}, 10);
+              setTimeout(function() {t.select(i);}, 100);
+            }
+          })
+          .fail(function(xhr, status, error) {
+            alertify.pgRespErrorNotify(xhr, error);
+            t.unload(i);
           });
 
           return false;
         },
       },
-      canDrop: pgBrowser.Nodes['schema'].canChildDrop,
+      canDrop: schemaChildTreeNode.isTreeItemOfChildOfSchema,
       model: pgAdmin.Browser.Node.Model.extend({
         idAttribute: 'oid',
 

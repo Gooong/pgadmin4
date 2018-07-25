@@ -54,12 +54,12 @@ APP_REVISION = 1
 
 # Application version suffix, e.g. 'beta1', 'dev'. Usually an empty string
 # for GA releases.
-APP_SUFFIX = 'dev'
+APP_SUFFIX = ''
 
 # Numeric application version for upgrade checks. Should be in the format:
 # [X]XYYZZ, where X is the release version, Y is the revision, with a leading
 # zero if needed, and Z represents the suffix, with a leading zero if needed
-APP_VERSION_INT = 30001
+APP_VERSION_INT = 30100
 
 # DO NOT CHANGE!
 # The application version string, constructed from the components
@@ -85,6 +85,7 @@ LANGUAGES = {
     'zh': 'Chinese (Simplified)',
     'de': 'German',
     'fr': 'French',
+    'ko': 'Korean',
     'ja': 'Japanese',
     'pl': 'Polish',
     'ru': 'Russian'
@@ -293,6 +294,11 @@ UPGRADE_CHECK_ENABLED = True
 # Where should we get the data from?
 UPGRADE_CHECK_URL = 'https://www.pgadmin.org/versions.json'
 
+# Which CA file should we use?
+# Default to cacert.pem in the same directory as config.py et al.
+CA_FILE = os.path.join(os.path.dirname(os.path.realpath(__file__)),
+                       "cacert.pem")
+
 ##########################################################################
 # Storage Manager storage url config settings
 # If user sets STORAGE_DIR to empty it will show all volumes if platform
@@ -363,6 +369,13 @@ COOKIE_DEFAULT_PATH = '/'
 COOKIE_DEFAULT_DOMAIN = None
 SESSION_COOKIE_DOMAIN = None
 SESSION_COOKIE_SAMESITE = 'Lax'
+
+#########################################################################
+# Skip storing session in files and cache for specific paths
+#########################################################################
+SESSION_SKIP_PATHS = [
+    '/misc/ping'
+]
 
 ##########################################################################
 # SSH Tunneling supports only for Python 2.7 and 3.4+

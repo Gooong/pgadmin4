@@ -172,7 +172,7 @@ class BatchProcess(object):
         csv_writer = csv.writer(
             args_csv_io, delimiter=str(','), quoting=csv.QUOTE_MINIMAL
         )
-        if sys.version_info.major == 2:
+        if sys.version_info[0] == 2:
             csv_writer.writerow(
                 [
                     a.encode('utf-8')
@@ -463,7 +463,7 @@ class BatchProcess(object):
                 stime = parser.parse(self.stime)
                 etime = parser.parse(self.etime or get_current_time())
 
-                execution_time = (etime - stime).total_seconds()
+                execution_time = BatchProcess.total_seconds(etime - stime)
 
             if process_output:
                 out, out_completed = read_log(
@@ -558,7 +558,7 @@ class BatchProcess(object):
             stime = parser.parse(p.start_time)
             etime = parser.parse(p.end_time or get_current_time())
 
-            execution_time = (etime - stime).total_seconds()
+            execution_time = BatchProcess.total_seconds(etime - stime)
             desc = ""
             try:
                 desc = loads(p.desc.encode('latin-1')) if \
@@ -599,6 +599,16 @@ class BatchProcess(object):
             db.session.commit()
 
         return res
+
+    @staticmethod
+    def total_seconds(dt):
+        # Keep backward compatibility with Python 2.6 which doesn't have
+        # this method
+        if hasattr(dt, 'total_seconds'):
+            return dt.total_seconds()
+        else:
+            return (dt.microseconds + (dt.seconds + dt.days * 24 * 3600) *
+                    10**6) / 10**6
 
     @staticmethod
     def acknowledge(_pid):

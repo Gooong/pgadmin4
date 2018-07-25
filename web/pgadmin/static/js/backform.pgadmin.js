@@ -1,10 +1,11 @@
 define([
   'sources/gettext', 'underscore', 'underscore.string', 'jquery',
-  'backbone', 'backform', 'backgrid', 'codemirror', 'spectrum',
-  'pgadmin.backgrid', 'select2',
-], function(gettext, _, S, $, Backbone, Backform, Backgrid, CodeMirror) {
+  'backbone', 'backform', 'backgrid', 'codemirror', 'sources/sqleditor_utils',
+  'spectrum', 'pgadmin.backgrid', 'select2',
+], function(gettext, _, S, $, Backbone, Backform, Backgrid, CodeMirror, SqlEditorUtils) {
 
-  var pgAdmin = (window.pgAdmin = window.pgAdmin || {});
+  var pgAdmin = (window.pgAdmin = window.pgAdmin || {}),
+    pgBrowser = pgAdmin.Browser;
 
   pgAdmin.editableCell = function() {
     if (this.attributes && !_.isUndefined(this.attributes.disabled) &&
@@ -1259,8 +1260,7 @@ define([
       var subnode = data.subnode.schema ? data.subnode : data.subnode.prototype,
         gridSchema = Backform.generateGridColumnsFromModel(
           data.node_info, subnode, this.field.get('mode'), data.columns, data.schema_node
-        ),
-        pgBrowser = window.pgAdmin.Browser;
+        );
 
       // Clean up existing grid if any (in case of re-render)
       if (self.grid) {
@@ -1428,6 +1428,23 @@ define([
     getValueFromDOM: function() {
       return this.formatter.toRaw(this.$el.find('textarea').val(), this.model);
     },
+
+    reflectPreferences: function() {
+      var self = this;
+      /* self.sqlCtrl is null when SQL tab is not active */
+      if(self.sqlCtrl) {
+        let sqlEditPreferences = pgAdmin.Browser.get_preferences_for_module('sqleditor');
+
+        $(self.sqlCtrl.getWrapperElement()).css(
+          'font-size',SqlEditorUtils.calcFontSize(sqlEditPreferences.sql_font_size)
+        );
+        self.sqlCtrl.setOption('tabSize', sqlEditPreferences.tab_size);
+        self.sqlCtrl.setOption('lineWrapping', sqlEditPreferences.wrap_code);
+        self.sqlCtrl.setOption('autoCloseBrackets', sqlEditPreferences.insert_pair_brackets);
+        self.sqlCtrl.setOption('matchBrackets', sqlEditPreferences.brace_matching);
+        self.sqlCtrl.refresh();
+      }
+    },
     render: function() {
       if (this.sqlCtrl) {
         this.sqlCtrl.toTextArea();
@@ -1446,11 +1463,15 @@ define([
           mode: 'text/x-pgsql',
           readOnly: true,
           extraKeys: pgAdmin.Browser.editor_shortcut_keys,
-          tabSize: pgAdmin.Browser.editor_options.tabSize,
-          lineWrapping: pgAdmin.Browser.editor_options.wrapCode,
-          autoCloseBrackets: pgAdmin.Browser.editor_options.insert_pair_brackets,
-          matchBrackets: pgAdmin.Browser.editor_options.brace_matching,
         });
+
+      this.reflectPreferences();
+
+      /* Check for sql editor preference changes */
+      let self = this;
+      pgBrowser.onPreferencesChange('sqleditor', function() {
+        self.reflectPreferences();
+      });
 
       /*
        * We will listen to the tab change event to check, if the SQL tab has
@@ -1571,7 +1592,6 @@ define([
   ) {
     var proto = (Model && Model.prototype) || Model,
       schema = subschema || (proto && proto.schema),
-      pgBrowser = window.pgAdmin.Browser,
       fields = [],
       groupInfo = {};
 
@@ -2051,6 +2071,32 @@ define([
       return this.sqlCtrl.getValue();
     },
 
+    reflectPreferences: function() {
+      var self = this;
+      /* self.sqlCtrl is null when Definition tab is not active */
+      if(self.sqlCtrl) {
+
+        /* This control is used by filter dialog in query editor, so taking preferences from window
+         * SQL Editor can be in different tab
+         */
+        let browser = window.opener ?
+              window.opener.pgAdmin.Browser : window.top.pgAdmin.Browser;
+
+        let sqlEditPreferences = browser.get_preferences_for_module('sqleditor');
+
+        $(self.sqlCtrl.getWrapperElement()).css(
+          'font-size',SqlEditorUtils.calcFontSize(sqlEditPreferences.sql_font_size)
+        );
+        self.sqlCtrl.setOption('indentWithTabs', !sqlEditPreferences.use_spaces);
+        self.sqlCtrl.setOption('indentUnit', sqlEditPreferences.tab_size);
+        self.sqlCtrl.setOption('tabSize', sqlEditPreferences.tab_size);
+        self.sqlCtrl.setOption('lineWrapping', sqlEditPreferences.wrap_code);
+        self.sqlCtrl.setOption('autoCloseBrackets', sqlEditPreferences.insert_pair_brackets);
+        self.sqlCtrl.setOption('matchBrackets', sqlEditPreferences.brace_matching);
+        self.sqlCtrl.refresh();
+      }
+    },
+
     render: function() {
       // Clean up the existing sql control
       if (this.sqlCtrl) {
@@ -2093,13 +2139,13 @@ define([
           lineNumbers: true,
           mode: 'text/x-pgsql',
           extraKeys: pgAdmin.Browser.editor_shortcut_keys,
-          indentWithTabs: pgAdmin.Browser.editor_options.indent_with_tabs,
-          indentUnit: pgAdmin.Browser.editor_options.tabSize,
-          tabSize: pgAdmin.Browser.editor_options.tabSize,
-          lineWrapping: pgAdmin.Browser.editor_options.wrapCode,
-          autoCloseBrackets: pgAdmin.Browser.editor_options.insert_pair_brackets,
-          matchBrackets: pgAdmin.Browser.editor_options.brace_matching,
         });
+
+      self.reflectPreferences();
+      /* Check for sql editor preference changes */
+      pgBrowser.onPreferencesChange('sqleditor', function() {
+        self.reflectPreferences();
+      });
 
       // Disable editor
       if (isDisabled) {
@@ -2268,6 +2314,12 @@ define([
       Backform.InputControl.prototype.updateInvalid.apply(this, arguments);
       // Introduce a new class to fix the error icon placement on the control
       this.$el.addClass('pgadmin-file-has-error');
+    },
+    disable_button: function() {
+      this.$el.find('button.select_item').attr('disabled', 'disabled');
+    },
+    enable_button: function() {
+      this.$el.find('button.select_item').removeAttr('disabled');
     },
   });
 

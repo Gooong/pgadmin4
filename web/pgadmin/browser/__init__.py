@@ -9,6 +9,7 @@
 
 import json
 import logging
+import os
 from abc import ABCMeta, abstractmethod, abstractproperty
 from smtplib import SMTPConnectError, SMTPResponseException, \
     SMTPServerDisconnected, SMTPDataError, SMTPHeloError, SMTPException, \
@@ -505,7 +506,10 @@ def index():
             # Do not wait for more than 5 seconds.
             # It stuck on rendering the browser.html, while working in the
             # broken network.
-            response = urlreq.urlopen(url, data, 5)
+            if os.path.exists(config.CA_FILE):
+                response = urlreq.urlopen(url, data, 5, cafile=config.CA_FILE)
+            else:
+                response = urlreq.urlopen(url, data, 5)
             current_app.logger.debug(
                 'Version check HTTP response code: %d' % response.getcode()
             )
@@ -679,17 +683,6 @@ def collection_js():
 def browser_css():
     """Render and return CSS snippets from the nodes and modules."""
     snippets = []
-
-    # Get configurable options
-    prefs = Preferences.module('sqleditor')
-
-    sql_font_size_pref = prefs.preference('sql_font_size')
-    sql_font_size = round(float(sql_font_size_pref.get()), 2)
-
-    if sql_font_size != 0:
-        snippets.append(
-            '.CodeMirror { font-size: %sem; }' % str(sql_font_size)
-        )
 
     for submodule in blueprint.submodules:
         snippets.extend(submodule.csssnippets)

@@ -1,8 +1,8 @@
 .. _desktop_deployment:
 
-******************
-Desktop Deployment
-******************
+***************************
+`Desktop Deployment`:index:
+***************************
 
 pgAdmin may be deployed as a desktop application by configuring the application
 to run in desktop mode and then utilising the desktop runtime to host the
@@ -81,13 +81,10 @@ The configuration settings:
 +==========================+====================+===============================================================+
 | ApplicationPath          | String             | The directory containing pgAdmin4.py                          |
 +--------------------------+--------------------+---------------------------------------------------------------+
+| BrowserCommand           | String             | An alternate command to run instead of the default browser.   |
++--------------------------+--------------------+---------------------------------------------------------------+
 | ConnectionTimeout        | Integer            | The number of seconds to wait for application server startup. |
 +--------------------------+--------------------+---------------------------------------------------------------+
 | PythonPath               | String             | The Python module search path                                 |
 +--------------------------+--------------------+---------------------------------------------------------------+
-| Browser/Geometry         | Binary             | The runtime window's size/shape                               |
-+--------------------------+--------------------+---------------------------------------------------------------+
-| Browser/WindowState      | Binary             | The runtime window's state                                    |
-+--------------------------+--------------------+---------------------------------------------------------------+
-| Browser/Zoom             | String             | The runtime window's zoom level (zoom % / 100)                |
-+--------------------------+--------------------+---------------------------------------------------------------+
+

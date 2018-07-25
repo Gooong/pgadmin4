@@ -55,7 +55,9 @@ class IndexesAddTestCase(BaseTestGenerator):
                 "spcname": "pg_default",
                 "amname": "btree",
                 "columns": [
-                    {"colname": "id", "sort_order": False, "nulls": False}]}
+                    {"colname": "id", "sort_order": False, "nulls": False}],
+                "include": ["name"]
+                }
         response = self.tester.post(
             self.url + str(utils.SERVER_GROUP) + '/' +
             str(self.server_id) + '/' + str(self.db_id) +

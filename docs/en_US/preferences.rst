@@ -1,8 +1,8 @@
 .. _preferences:
 
-**********************
-The Preferences Dialog
-**********************
+***************************
+`Preferences Dialog`:index:
+***************************
 
 Use options on the *Preferences* dialog to customize the behavior of the client. To open the *Preferences* dialog, select *Preferences* from the *File* menu.  The left pane of the *Preferences* dialog displays a tree control; each node of the tree control provides access to options that are related to the node under which they are displayed.
 
@@ -126,6 +126,13 @@ Please note: the default help paths include the *VERSION* placeholder; the $VERS
 **The SQL Editor Node**
 
 Expand the *SQL Editor* node to access panels that allow you to specify your preferences for the SQL Editor tool.
+
+.. image:: images/preferences_sql_auto_completion.png
+    :alt: Preferences dialog sqleditor auto completion option
+
+Use the fields on the *Auto Completion* panel to set the auto completion options.
+
+* When the *Keywords in uppercase* switch is set to *True* then keywords are shown in upper case.
 
 .. image:: images/preferences_sql_csv_output.png
     :alt: Preferences dialog sqleditor csv output option

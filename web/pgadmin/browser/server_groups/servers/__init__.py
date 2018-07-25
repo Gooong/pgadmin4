@@ -480,6 +480,7 @@ class ServerNode(PGChildNodeView):
             'bgcolor': 'bgcolor',
             'fgcolor': 'fgcolor',
             'service': 'service',
+            'connect_timeout': 'connect_timeout',
             'use_ssh_tunnel': 'use_ssh_tunnel',
             'tunnel_host': 'tunnel_host',
             'tunnel_port': 'tunnel_port',
@@ -672,6 +673,8 @@ class ServerNode(PGChildNodeView):
                 'sslcompression': True if is_ssl and server.sslcompression
                 else False,
                 'service': server.service if server.service else None,
+                'connect_timeout':
+                    server.connect_timeout if server.connect_timeout else 0,
                 'use_ssh_tunnel': server.use_ssh_tunnel
                 if server.use_ssh_tunnel else 0,
                 'tunnel_host': server.tunnel_host if server.tunnel_host
@@ -755,6 +758,7 @@ class ServerNode(PGChildNodeView):
                 bgcolor=data.get('bgcolor', None),
                 fgcolor=data.get('fgcolor', None),
                 service=data.get('service', None),
+                connect_timeout=data.get('connect_timeout', 0),
                 use_ssh_tunnel=data.get('use_ssh_tunnel', 0),
                 tunnel_host=data.get('tunnel_host', None),
                 tunnel_port=data.get('tunnel_port', 22),
@@ -778,7 +782,7 @@ class ServerNode(PGChildNodeView):
                 have_password = False
                 password = None
                 passfile = None
-                tunnel_password = None
+                tunnel_password = ''
                 if 'password' in data and data["password"] != '':
                     # login with password
                     have_password = True
@@ -969,7 +973,7 @@ class ServerNode(PGChildNodeView):
                 return self.get_response_for_password(server, 428)
             else:
                 tunnel_password = data['tunnel_password'] if 'tunnel_password'\
-                                                             in data else None
+                                                             in data else ''
                 # Encrypt the password before saving with user's login
                 # password key.
                 try:
@@ -1241,7 +1245,16 @@ class ServerNode(PGChildNodeView):
                     return unauthorized(gettext("Incorrect password."))
 
             # Hash new password before saving it.
-            password = pqencryptpassword(data['newPassword'], manager.user)
+            if manager.sversion >= 100000:
+                password = conn.pq_encrypt_password_conn(data['newPassword'],
+                                                         manager.user)
+                if password is None:
+                    # Unable to encrypt the password so used the
+                    # old method of encryption
+                    password = pqencryptpassword(data['newPassword'],
+                                                 manager.user)
+            else:
+                password = pqencryptpassword(data['newPassword'], manager.user)
 
             SQL = render_template(
                 "/servers/sql/#{0}#/change_password.sql".format(

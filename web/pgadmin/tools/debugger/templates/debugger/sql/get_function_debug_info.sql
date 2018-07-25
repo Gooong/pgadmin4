@@ -26,7 +26,11 @@ SELECT
                     pg_catalog.generate_series(0, pg_catalog.array_upper(proargtypes, 1)) s(i)), ',')
         END AS proargtypes,
     pg_catalog.array_to_string(p.proargnames, ',') AS proargnames,
+    {% if is_ppas_database %}
+    pg_catalog.array_to_string(proargdeclaredmodes, ',') AS proargmodes,
+    {% else %}
     pg_catalog.array_to_string(proargmodes, ',') AS proargmodes,
+    {% endif %}
 
     {% if is_ppas_database %}
         CASE WHEN n.nspparent <> 0 THEN n.oid ELSE 0 END AS pkg,
@@ -41,7 +45,11 @@ SELECT
         0 AS pkgconsoid,
         n.oid     AS schema,
         n.nspname AS schemaname,
-        true AS isfunc,
+        {% if is_proc_supported %}
+        CASE WHEN p.prokind in ('f', 'w') THEN TRUE ELSE FALSE END AS isfunc,
+        {% else %}
+        TRUE AS isfunc,
+        {% endif %}
     {%endif%}
     pg_catalog.pg_get_function_identity_arguments(p.oid) AS signature,
 

@@ -66,3 +66,7 @@ samp,
 .pg-login-icon {
   font-size: 16px;
 }
+
+.CodeMirror {
+  font-size: 1em;
+}

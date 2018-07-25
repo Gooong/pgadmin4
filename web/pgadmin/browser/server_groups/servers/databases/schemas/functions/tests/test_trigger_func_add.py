@@ -10,14 +10,11 @@
 import json
 import uuid
 
-from pgadmin.browser.server_groups.servers.databases.schemas.tests import \
-    utils as schema_utils
 from pgadmin.browser.server_groups.servers.databases.tests import utils as \
     database_utils
-from pgadmin.utils import server_utils as server_utils
 from pgadmin.utils.route import BaseTestGenerator
-from regression import parent_node_dict
 from regression.python_test_utils import test_utils as utils
+from . import utils as funcs_utils
 
 
 class TriggerFuncAddTestCase(BaseTestGenerator):
@@ -32,30 +29,7 @@ class TriggerFuncAddTestCase(BaseTestGenerator):
     def runTest(self):
         """ This function will add trigger function under schema node. """
         super(TriggerFuncAddTestCase, self).runTest()
-        db_name = parent_node_dict["database"][-1]["db_name"]
-        schema_info = parent_node_dict["schema"][-1]
-        server_id = schema_info["server_id"]
-        db_id = schema_info["db_id"]
-        prorettypename = "event_trigger/trigger"
-        server_con = server_utils.connect_server(self, server_id)
-        if not server_con["info"] == "Server connected.":
-            raise Exception("Could not connect to server to add resource "
-                            "groups.")
-        if "type" in server_con["data"]:
-            if server_con["data"]["version"] < 90300:
-                prorettypename = "trigger"
-
-        db_con = database_utils.connect_database(self, utils.SERVER_GROUP,
-                                                 server_id, db_id)
-        if not db_con['data']["connected"]:
-            raise Exception("Could not connect to database to add a function.")
-        schema_id = schema_info["schema_id"]
-        schema_name = schema_info["schema_name"]
-        schema_response = schema_utils.verify_schemas(self.server,
-                                                      db_name,
-                                                      schema_name)
-        if not schema_response:
-            raise Exception("Could not find the schema to add a function.")
+        self = funcs_utils.set_up(self)
         db_user = self.server["username"]
         data = {
             "acl": [
@@ -79,7 +53,7 @@ class TriggerFuncAddTestCase(BaseTestGenerator):
             "options": [],
             "proleakproof": True,
             "pronamespace": 2200,
-            "prorettypename": prorettypename,
+            "prorettypename": self.prorettypename,
             "prosecdef": True,
             "prosrc": "BEGIN RAISE EXCEPTION 'command % is disabled',"
                       " tg_tag; END;",
@@ -98,16 +72,17 @@ class TriggerFuncAddTestCase(BaseTestGenerator):
         for func_type in trigger_func_types:
             data['prorettypename'] = func_type
             data["name"] = "test_event_add_%s" % str(uuid.uuid4())[1:8]
-            if schema_id:
-                data['pronamespace'] = schema_id
+            if self.schema_id:
+                data['pronamespace'] = self.schema_id
             else:
-                schema_id = data['pronamespace']
+                self.schema_id = data['pronamespace']
             response = self.tester.post(
                 self.url + str(utils.SERVER_GROUP) + '/' +
-                str(server_id) + '/' + str(db_id) + '/' + str(schema_id) +
+                str(self.server_id) + '/' + str(self.db_id) +
+                '/' + str(self.schema_id) +
                 '/', data=json.dumps(data), content_type='html/json'
             )
 
             self.assertEquals(response.status_code, 200)
         # Disconnect the database
-        database_utils.disconnect_database(self, server_id, db_id)
+        database_utils.disconnect_database(self, self.server_id, self.db_id)

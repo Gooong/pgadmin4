@@ -1,11 +1,12 @@
 define('pgadmin.dashboard', [
   'sources/url_for', 'sources/gettext', 'require', 'jquery', 'underscore',
   'sources/pgadmin', 'backbone', 'backgrid', 'flotr2',
-  'pgadmin.alertifyjs', 'pgadmin.backform', 'backgrid.filter',
+  'pgadmin.alertifyjs', 'pgadmin.backform',
+  'sources/nodes/dashboard', 'backgrid.filter',
   'pgadmin.browser', 'bootstrap', 'wcdocker',
 ], function(
   url_for, gettext, r, $, _, pgAdmin, Backbone, Backgrid, Flotr,
-  Alertify, Backform
+  Alertify, Backform, NodesDashboard
 ) {
 
   pgAdmin.Browser = pgAdmin.Browser || {};
@@ -89,17 +90,17 @@ define('pgadmin.dashboard', [
           $.ajax({
             url: action_url,
             type: 'DELETE',
-            success: function(res) {
-              if (res == gettext('Success')) {
-                Alertify.success(txtSuccess);
-                refresh_grid();
-              } else {
-                Alertify.error(txtError);
-              }
-            },
-            error: function(xhr, status, error) {
-              Alertify.pgRespErrorNotify(xhr, error);
-            },
+          })
+          .done(function(res) {
+            if (res == gettext('Success')) {
+              Alertify.success(txtSuccess);
+              refresh_grid();
+            } else {
+              Alertify.error(txtError);
+            }
+          })
+          .fail(function(xhr, status, error) {
+            Alertify.pgRespErrorNotify(xhr, error);
           });
         },
         function() {
@@ -192,6 +193,10 @@ define('pgadmin.dashboard', [
 
       this.initialized = true;
 
+      this.sid = this.did = -1;
+      this.version = -1;
+
+
       // Bind the Dashboard object with the 'object_selected' function
       var selected = this.object_selected.bind(this);
       var disconnected = this.object_disconnected.bind(this);
@@ -205,6 +210,11 @@ define('pgadmin.dashboard', [
       // Load the default welcome dashboard
       var url = url_for('dashboard.index');
 
+      /* Store the interval ids of the graph interval functions so that we can clear
+       * them when graphs are disabled
+       */
+      this.intervalIds = {};
+
       var dashboardPanel = pgBrowser.panels['dashboard'].panel;
       if (dashboardPanel) {
         var div = dashboardPanel.layout().scene().find('.pg-panel-content');
@@ -214,14 +224,14 @@ define('pgadmin.dashboard', [
             url: url,
             type: 'GET',
             dataType: 'html',
-            success: function(data) {
-              $(div).html(data);
-            },
-            error: function() {
-              $(div).html(
-                '<div class="alert alert-danger pg-panel-message" role="alert">' + gettext('An error occurred whilst loading the dashboard.') + '</div>'
-              );
-            },
+          })
+          .done(function(data) {
+            $(div).html(data);
+          })
+          .fail(function() {
+            $(div).html(
+              '<div class="alert alert-danger pg-panel-message" role="alert">' + gettext('An error occurred whilst loading the dashboard.') + '</div>'
+            );
           });
 
           // Cache the current IDs for next time
@@ -238,53 +248,48 @@ define('pgadmin.dashboard', [
 
     // Handle treeview clicks
     object_selected: function(item, itemData, node) {
+      let self = this;
+      /* Clear all the interval functions of previous dashboards */
+      self.clearIntervalId();
+
       if (itemData && itemData._type && dashboardVisible) {
         var treeHierarchy = node.getTreeNodeHierarchy(item),
-          url = url_for('dashboard.index'),
-          sid = -1,
-          did = -1,
-          b = pgAdmin.Browser,
-          m = b && b.Nodes[itemData._type];
+          url = NodesDashboard.url(itemData, item, treeHierarchy);
 
-        cancel_query_url = url_for('dashboard.index') + 'cancel_query/';
-        terminate_session_url = url_for('dashboard.index') + 'terminate_session/';
+        if (url === null) {
+          url = url_for('dashboard.index');
 
-        // Check if user is super user
-        var server = treeHierarchy['server'];
-        maintenance_database = (server && server.db) || null;
+          cancel_query_url = url + 'cancel_query/';
+          terminate_session_url = url + 'terminate_session/';
 
-        if (server && server.user && server.user.is_superuser) {
-          is_super_user = true;
-        } else {
-          is_super_user = false;
-          // Set current user
-          current_user = (server && server.user) ? server.user.name : null;
-        }
+          // Check if user is super user
+          var server = treeHierarchy['server'];
+          maintenance_database = (server && server.db) || null;
 
-        if (m && m.dashboard) {
-          if (_.isFunction(m.dashboard)) {
-            url = m.dashboard.apply(
-              item, itemData, node, treeHierarchy
-            );
+          if (server && server.user && server.user.is_superuser) {
+            is_super_user = true;
           } else {
-            url = m.dashboard;
+            is_super_user = false;
+            // Set current user
+            current_user = (server && server.user) ? server.user.name : null;
           }
-        } else {
+
           if ('database' in treeHierarchy) {
-            sid = treeHierarchy.server._id;
-            did = treeHierarchy.database._id;
+            self.sid = treeHierarchy.server._id;
+            self.did = treeHierarchy.database._id;
             is_server_dashboard = false;
             is_database_dashboard = true;
-            url += sid + '/' + did;
-            cancel_query_url += sid + '/' + did + '/';
-            terminate_session_url += sid + '/' + did + '/';
+            url += self.sid + '/' + self.did;
+            cancel_query_url += self.sid + '/' + self.did + '/';
+            terminate_session_url += self.sid + '/' + self.did + '/';
           } else if ('server' in treeHierarchy) {
-            sid = treeHierarchy.server._id;
+            self.sid = treeHierarchy.server._id;
+            self.did = -1;
             is_server_dashboard = true;
             is_database_dashboard = false;
-            url += sid;
-            cancel_query_url += sid + '/';
-            terminate_session_url += sid + '/';
+            url += self.sid;
+            cancel_query_url += self.sid + '/';
+            terminate_session_url += self.sid + '/';
           }
         }
 
@@ -297,8 +302,9 @@ define('pgadmin.dashboard', [
           if (div) {
             if (itemData.connected || _.isUndefined(itemData.connected)) {
               // Avoid unnecessary reloads
-              if (url != $(dashboardPanel).data('dashboard_url') ||
-                (url == $(dashboardPanel).data('dashboard_url') && $(dashboardPanel).data('server_status') == false)) {
+              if (url !== $(dashboardPanel).data('dashboard_url') || (
+                url === $(dashboardPanel).data('dashboard_url') &&
+                  $(dashboardPanel).data('server_status') == false)) {
                 // Clear out everything so any existing timers die off
                 $(div).empty();
 
@@ -306,18 +312,21 @@ define('pgadmin.dashboard', [
                   url: url,
                   type: 'GET',
                   dataType: 'html',
-                  success: function(data) {
-                    $(div).html(data);
-                  },
-                  error: function() {
-                    $(div).html(
-                      '<div class="alert alert-danger pg-panel-message" role="alert">' + gettext('An error occurred whilst loading the dashboard.') + '</div>'
-                    );
-                  },
+                })
+                .done(function(data) {
+                  $(div).html(data);
+                  self.init_dashboard();
+                })
+                .fail(function() {
+                  $(div).html(
+                    '<div class="alert alert-danger pg-panel-message" role="alert">' + gettext('An error occurred whilst loading the dashboard.') + '</div>'
+                  );
                 });
                 $(dashboardPanel).data('server_status', true);
               }
-
+              else {
+                self.init_dashboard();
+              }
             } else {
               $(div).empty();
               $(div).html(
@@ -327,15 +336,141 @@ define('pgadmin.dashboard', [
             }
             // Cache the current IDs for next time
             $(dashboardPanel).data('dashboard_url', url);
-
           }
         }
       }
     },
 
+    renderChartLoop: function(container, sid, did, url, options, counter, refresh) {
+      var data = [],
+        dataset = [];
+
+      var theIntervalFunc = function() {
+        var path = url + sid;
+        if (did != -1) {
+          path += '/' + did;
+        }
+        $.ajax({
+          url: path,
+          type: 'GET',
+          dataType: 'html',
+        })
+        .done(function(resp) {
+          $(container).removeClass('graph-error');
+          data = JSON.parse(resp);
+          if (!dashboardVisible)
+            return;
+
+          var y = 0,
+            x;
+          if (dataset.length == 0) {
+            if (counter == true) {
+              // Have we stashed initial values?
+              if (_.isUndefined($(container).data('counter_previous_vals'))) {
+                $(container).data('counter_previous_vals', data[0]);
+              } else {
+                // Create the initial data structure
+                for (x in data[0]) {
+                  dataset.push({
+                    'data': [
+                      [0, data[0][x] - $(container).data('counter_previous_vals')[x]],
+                    ],
+                    'label': x,
+                  });
+                }
+              }
+            } else {
+              // Create the initial data structure
+              for (x in data[0]) {
+                dataset.push({
+                  'data': [
+                    [0, data[0][x]],
+                  ],
+                  'label': x,
+                });
+              }
+            }
+          } else {
+            for (x in data[0]) {
+              // Push new values onto the existing data structure
+              // If this is a counter stat, we need to subtract the previous value
+              if (counter == false) {
+                dataset[y]['data'].unshift([0, data[0][x]]);
+              } else {
+                // Store the current value, minus the previous one we stashed.
+                // It's possible the tab has been reloaded, in which case out previous values are gone
+                if (_.isUndefined($(container).data('counter_previous_vals')))
+                  return;
+
+                dataset[y]['data'].unshift([0, data[0][x] - $(container).data('counter_previous_vals')[x]]);
+              }
+
+              // Reset the time index to get a proper scrolling display
+              for (var z = 0; z < dataset[y]['data'].length; z++) {
+                dataset[y]['data'][z][0] = z;
+              }
+
+              y++;
+            }
+            $(container).data('counter_previous_vals', data[0]);
+          }
+
+          // Remove uneeded elements
+          for (x = 0; x < dataset.length; x++) {
+            // Remove old data points
+            if (dataset[x]['data'].length > 101) {
+              dataset[x]['data'].pop();
+            }
+          }
+
+          // Draw Graph, if the container still exists and has a size
+          var dashboardPanel = pgBrowser.panels['dashboard'].panel;
+          var div = dashboardPanel.layout().scene().find('.pg-panel-content');
+          if ($(div).find(container).length) { // Exists?
+            if (container.clientHeight > 0 && container.clientWidth > 0) { // Not hidden?
+              Flotr.draw(container, dataset, options);
+            }
+          } else {
+            return;
+          }
+
+        })
+        .fail(function(xhr) {
+          let err = '';
+          let msg = '';
+          let cls = 'info';
+
+          if (xhr.readyState === 0) {
+            msg = gettext('Not connected to the server or the connection to the server has been closed.');
+          } else {
+            err = JSON.parse(xhr.responseText);
+            msg = err.errormsg;
+
+            // If we get a 428, it means the server isn't connected
+            if (xhr.status === 428) {
+              if (_.isUndefined(msg) || _.isNull(msg)) {
+                msg = gettext('Please connect to the selected server to view the graph.');
+              }
+            } else {
+              msg = gettext('An error occurred whilst rendering the graph.');
+              cls = 'danger';
+            }
+          }
+
+          $(container).addClass('graph-error');
+          $(container).html(
+            '<div class="alert alert-' + cls + ' pg-panel-message" role="alert">' + msg + '</div>'
+          );
+        });
+      };
+      /* Execute once for the first time as setInterval will not do */
+      theIntervalFunc();
+      return setInterval(theIntervalFunc, refresh * 1000);
+    },
+
     // Render a chart
     render_chart: function(
-      container, data, dataset, sid, did, url, options, counter, refresh
+      container, url, options, counter, chartName, prefName
     ) {
 
       // Data format:
@@ -345,133 +480,17 @@ define('pgadmin.dashboard', [
       //     { data: [[0, y0], [1, y1]...], label: 'Label 3', [options] }
       // ]
 
-      if (!dashboardVisible)
-        return;
-
-      var y = 0,
-        x;
-      if (dataset.length == 0) {
-        if (counter == true) {
-          // Have we stashed initial values?
-          if (_.isUndefined($(container).data('counter_previous_vals'))) {
-            $(container).data('counter_previous_vals', data[0]);
-          } else {
-            // Create the initial data structure
-            for (x in data[0]) {
-              dataset.push({
-                'data': [
-                  [0, data[0][x] - $(container).data('counter_previous_vals')[x]],
-                ],
-                'label': x,
-              });
-            }
-          }
-        } else {
-          // Create the initial data structure
-          for (x in data[0]) {
-            dataset.push({
-              'data': [
-                [0, data[0][x]],
-              ],
-              'label': x,
-            });
-          }
-        }
-      } else {
-        for (x in data[0]) {
-          // Push new values onto the existing data structure
-          // If this is a counter stat, we need to subtract the previous value
-          if (counter == false) {
-            dataset[y]['data'].unshift([0, data[0][x]]);
-          } else {
-            // Store the current value, minus the previous one we stashed.
-            // It's possible the tab has been reloaded, in which case out previous values are gone
-            if (_.isUndefined($(container).data('counter_previous_vals')))
-              return;
-
-            dataset[y]['data'].unshift([0, data[0][x] - $(container).data('counter_previous_vals')[x]]);
-          }
-
-          // Reset the time index to get a proper scrolling display
-          for (var z = 0; z < dataset[y]['data'].length; z++) {
-            dataset[y]['data'][z][0] = z;
-          }
-
-          y++;
-        }
-        $(container).data('counter_previous_vals', data[0]);
+      let self = this;
+      if(self.intervalIds[chartName]
+        && self.old_preferences[prefName] != self.preferences[prefName]) {
+        self.clearIntervalId(chartName);
       }
-
-      // Remove uneeded elements
-      for (x = 0; x < dataset.length; x++) {
-        // Remove old data points
-        if (dataset[x]['data'].length > 101) {
-          dataset[x]['data'].pop();
-        }
+      if(!self.intervalIds[chartName]) {
+        self.intervalIds[chartName] = self.renderChartLoop(
+          container, self.sid, self.did, url,
+          options, counter, self.preferences[prefName]
+        );
       }
-
-      // Draw Graph, if the container still exists and has a size
-      var dashboardPanel = pgBrowser.panels['dashboard'].panel;
-      var div = dashboardPanel.layout().scene().find('.pg-panel-content');
-      if ($(div).find(container).length) { // Exists?
-        if (container.clientHeight > 0 && container.clientWidth > 0) { // Not hidden?
-          Flotr.draw(container, dataset, options);
-        }
-      } else {
-        return;
-      }
-
-      // Animate
-      var setTimeoutFunc = function() {
-        var path = url + sid;
-        if (did != -1) {
-          path += '/' + did;
-        }
-        $.ajax({
-          url: path,
-          type: 'GET',
-          dataType: 'html',
-          success: function(resp) {
-            $(container).removeClass('graph-error');
-            data = JSON.parse(resp);
-            pgAdmin.Dashboard.render_chart(container, data, dataset, sid, did, url, options, counter, refresh);
-          },
-          error: function(xhr) {
-            let err = '';
-            let msg = '';
-            let cls = 'info';
-
-            if (xhr.readyState === 0) {
-              msg = gettext('Not connected to the server or the connection to the server has been closed.');
-            } else {
-              err = JSON.parse(xhr.responseText);
-              msg = err.errormsg;
-
-              // If we get a 428, it means the server isn't connected
-              if (xhr.status === 428) {
-                if (_.isUndefined(msg) || _.isNull(msg)) {
-                  msg = gettext('Please connect to the selected server to view the graph.');
-                }
-              } else {
-                msg = gettext('An error occurred whilst rendering the graph.');
-                cls = 'danger';
-              }
-            }
-
-            $(container).addClass('graph-error');
-            $(container).html(
-              '<div class="alert alert-' + cls + ' pg-panel-message" role="alert">' + msg + '</div>'
-            );
-
-            // Try again...
-            if (container.clientHeight > 0 && container.clientWidth > 0) {
-              setTimeout(setTimeoutFunc, refresh * 1000);
-            }
-          },
-        });
-      };
-
-      setTimeout(setTimeoutFunc, refresh * 1000);
     },
 
     // Handler function to support the "Add Server" link
@@ -503,12 +522,13 @@ define('pgadmin.dashboard', [
     },
 
     // Render a grid
-    render_grid: function(container, sid, did, url, columns) {
-      var Datum = Backbone.Model.extend({});
+    render_grid: function(container, url, columns) {
+      var Datum = Backbone.Model.extend({}),
+        self = this;
 
-      var path = url + sid;
-      if (did != -1) {
-        path += '/' + did;
+      var path = url + self.sid;
+      if (self.did != -1) {
+        path += '/' + self.did;
       }
 
       var Data = Backbone.Collection.extend({
@@ -527,6 +547,7 @@ define('pgadmin.dashboard', [
       });
 
       // Render the grid
+      $(container).empty();
       $(container).append(grid.render().el);
 
       // Initialize a client-side filter to filter on the client
@@ -615,41 +636,59 @@ define('pgadmin.dashboard', [
       });
     },
 
-    // Rock n' roll on the server dashboard
-    init_server_dashboard: function(
-      sid,
-      version,
-      session_stats_refresh,
-      tps_stats_refresh,
-      ti_stats_refresh,
-      to_stats_refresh,
-      bio_stats_refresh,
-      show_graphs,
-      show_server_activity
-    ) {
+    clearIntervalId: function(intervalId) {
+      var self = this;
+      if(!intervalId){
+        _.each(self.intervalIds, function(id, key) {
+          clearInterval(id);
+          delete self.intervalIds[key];
+        });
+      }
+      else {
+        clearInterval(self.intervalIds[intervalId]);
+        delete self.intervalIds[intervalId];
+      }
+    },
+
+    // Rock n' roll on the dashboard
+    init_dashboard: function() {
+      let self = this;
+
+      if(self.sid === -1 && self.did === -1) {
+        return;
+      }
+
+      /* Cache may take time to load for the first time
+       * Keep trying till available
+       */
+      let cacheIntervalId = setInterval(function() {
+        try {
+          if(window.top.pgAdmin.Browser.preference_version() > 0) {
+            clearInterval(cacheIntervalId);
+            self.reflectPreferences();
+          }
+        }
+        catch(err) {
+          clearInterval(cacheIntervalId);
+          throw err;
+        }
+      },0);
+
+      /* Register for preference changed event broadcasted */
+      pgBrowser.onPreferencesChange('dashboards', function() {
+        self.reflectPreferences();
+      });
+
+    },
+
+    reflectPreferences: function() {
+      /* Common things can come here */
+      var self = this;
       var div_sessions = $('.dashboard-container').find('#graph-sessions')[0];
       var div_tps = $('.dashboard-container').find('#graph-tps')[0];
       var div_ti = $('.dashboard-container').find('#graph-ti')[0];
       var div_to = $('.dashboard-container').find('#graph-to')[0];
       var div_bio = $('.dashboard-container').find('#graph-bio')[0];
-      var div_server_activity = $('.dashboard-container').find('#server_activity');
-      var div_server_locks = $('.dashboard-container').find('#server_locks');
-      var div_server_prepared = $('.dashboard-container').find('#server_prepared');
-      var div_server_config = $('.dashboard-container').find('#server_config');
-      var dataset_sessions = [];
-      var data_sessions = [];
-      var dataset_tps = [];
-      var data_tps = [];
-      var dataset_ti = [];
-      var data_ti = [];
-      var dataset_to = [];
-      var data_to = [];
-      var dataset_bio = [];
-      var data_bio = [];
-
-      // Fake DB ID
-      var did = -1;
-
       var options_line = {
         parseFloat: false,
         xaxis: {
@@ -664,40 +703,85 @@ define('pgadmin.dashboard', [
           position: 'nw',
           backgroundColor: '#D2E8FF',
         },
+        shadowSize: 0,
+        resolution : 5,
       };
 
-      // Display graphs
-      if(show_graphs) {
+      /* We will use old preferences for selective graph updates on preference change */
+      if(self.preferences) {
+        self.old_preferences = self.preferences;
+        self.preferences = window.top.pgAdmin.Browser.get_preferences_for_module('dashboards');
+      }
+      else {
+        self.preferences = window.top.pgAdmin.Browser.get_preferences_for_module('dashboards');
+        self.old_preferences = self.preferences;
+      }
+
+      if(self.preferences.show_graphs && $('#dashboard-graphs').hasClass('dashboard-hidden')) {
+        $('#dashboard-graphs').removeClass('dashboard-hidden');
+      }
+      else if(!self.preferences.show_graphs) {
+        $('#dashboard-graphs').addClass('dashboard-hidden');
+        self.clearIntervalId();
+      }
+
+      if (self.preferences.show_activity && $('#dashboard-activity').hasClass('dashboard-hidden')) {
+        $('#dashboard-activity').removeClass('dashboard-hidden');
+      }
+      else if(!self.preferences.show_activity) {
+        $('#dashboard-activity').addClass('dashboard-hidden');
+      }
+
+      if(self.preferences.show_graphs) {
         // Render the graphs
         pgAdmin.Dashboard.render_chart(
-          div_sessions, data_sessions, dataset_sessions, sid, did,
-          url_for('dashboard.session_stats'), options_line, false,
-          session_stats_refresh
+          div_sessions, url_for('dashboard.session_stats'), options_line, false,
+          'session_stats', 'session_stats_refresh'
         );
         pgAdmin.Dashboard.render_chart(
-          div_tps, data_tps, dataset_tps, sid, did,
-          url_for('dashboard.tps_stats'), options_line, true,
-          tps_stats_refresh
+          div_tps, url_for('dashboard.tps_stats'), options_line, true,
+          'tps_stats','tps_stats_refresh'
         );
         pgAdmin.Dashboard.render_chart(
-          div_ti, data_ti, dataset_ti, sid, did,
-          url_for('dashboard.ti_stats'), options_line, true,
-          ti_stats_refresh
+          div_ti, url_for('dashboard.ti_stats'), options_line, true,
+          'ti_stats', 'ti_stats_refresh'
         );
         pgAdmin.Dashboard.render_chart(
-          div_to, data_to, dataset_to, sid, did,
-          url_for('dashboard.to_stats'), options_line, true,
-          to_stats_refresh
+          div_to, url_for('dashboard.to_stats'), options_line, true,
+          'to_stats','to_stats_refresh'
         );
         pgAdmin.Dashboard.render_chart(
-          div_bio, data_bio, dataset_bio, sid, did,
-          url_for('dashboard.bio_stats'), options_line, true,
-          bio_stats_refresh
+          div_bio, url_for('dashboard.bio_stats'), options_line, true,
+          'bio_stats','bio_stats_refresh'
         );
       }
 
+      /* Dashboard specific preferences can be updated in the
+       * appropriate functions
+       */
+      if(is_server_dashboard) {
+        self.reflectPreferencesServer();
+      }
+      else if(is_database_dashboard) {
+        self.reflectPreferencesDatabase();
+      }
+
+      if(!self.preferences.show_graphs && !self.preferences.show_activity) {
+        $('#dashboard-none-show').removeClass('dashboard-hidden');
+      }
+      else {
+        $('#dashboard-none-show').addClass('dashboard-hidden');
+      }
+    },
+    reflectPreferencesServer: function() {
+      var self = this;
+      var div_server_activity = $('.dashboard-container').find('#server_activity');
+      var div_server_locks = $('.dashboard-container').find('#server_locks');
+      var div_server_prepared = $('.dashboard-container').find('#server_prepared');
+      var div_server_config = $('.dashboard-container').find('#server_config');
+
       // Display server activity
-      if (show_server_activity) {
+      if (self.preferences.show_activity) {
         var server_activity_columns = [{
           name: 'pid',
           label: gettext('PID'),
@@ -735,7 +819,7 @@ define('pgadmin.dashboard', [
           cell: 'string',
         }];
 
-        if (version < 90600) {
+        if (self.version < 90600) {
           server_activity_columns = server_activity_columns.concat(
             [{
               name: 'waiting',
@@ -766,7 +850,7 @@ define('pgadmin.dashboard', [
 
         // Add version to each field
         _.each(subNodeFieldsModel[0].fields, function(obj) {
-          obj['version'] = version;
+          obj['version'] = self.version;
         });
 
         // Add cancel active query button
@@ -775,7 +859,7 @@ define('pgadmin.dashboard', [
           label: '',
           cell: SessionDetailsCell,
           cell_priority: -1,
-          postgres_version: version,
+          postgres_version: self.version,
           schema: subNodeFieldsModel,
         });
 
@@ -788,7 +872,7 @@ define('pgadmin.dashboard', [
           editable: false,
           cell_priority: -1,
           canDeleteRow: pgAdmin.Dashboard.can_take_action,
-          postgres_version: version,
+          postgres_version: self.version,
         });
 
         server_activity_columns.unshift({
@@ -799,7 +883,7 @@ define('pgadmin.dashboard', [
           editable: false,
           cell_priority: -1,
           canDeleteRow: pgAdmin.Dashboard.can_take_action,
-          postgres_version: version,
+          postgres_version: self.version,
         });
 
         var server_locks_columns = [{
@@ -929,20 +1013,16 @@ define('pgadmin.dashboard', [
 
         // Render the tabs, but only get data for the activity tab for now
         pgAdmin.Dashboard.render_grid(
-          div_server_activity, sid, did,
-          url_for('dashboard.activity'), server_activity_columns
+          div_server_activity, url_for('dashboard.activity'), server_activity_columns
         );
         pgAdmin.Dashboard.render_grid(
-          div_server_locks, sid, did, url_for('dashboard.locks'),
-          server_locks_columns
+          div_server_locks, url_for('dashboard.locks'), server_locks_columns
         );
         pgAdmin.Dashboard.render_grid(
-          div_server_prepared, sid, did, url_for('dashboard.prepared'),
-          server_prepared_columns
+          div_server_prepared, url_for('dashboard.prepared'), server_prepared_columns
         );
         pgAdmin.Dashboard.render_grid(
-          div_server_config, sid, did, url_for('dashboard.config'),
-          server_config_columns
+          div_server_config, url_for('dashboard.config'), server_config_columns
         );
 
         pgAdmin.Dashboard.render_grid_data(div_server_activity);
@@ -969,7 +1049,7 @@ define('pgadmin.dashboard', [
         });
 
         // Handle button clicks
-        $('button').on('click',() => {
+        $('button').off('click').on('click',() => {
           switch (this.id) {
           case 'btn_server_activity_refresh':
             pgAdmin.Dashboard.render_grid_data(div_server_activity);
@@ -990,87 +1070,14 @@ define('pgadmin.dashboard', [
         });
       }
     },
-
-    // Rock n' roll on the database dashboard
-    init_database_dashboard: function(
-      sid,
-      did,
-      version,
-      session_stats_refresh,
-      tps_stats_refresh,
-      ti_stats_refresh,
-      to_stats_refresh,
-      bio_stats_refresh,
-      show_graphs,
-      show_database_activity
-    ) {
-      var div_sessions = document.getElementById('graph-sessions');
-      var div_tps = document.getElementById('graph-tps');
-      var div_ti = document.getElementById('graph-ti');
-      var div_to = document.getElementById('graph-to');
-      var div_bio = document.getElementById('graph-bio');
+    reflectPreferencesDatabase: function() {
+      var self = this;
       var div_database_activity = document.getElementById('database_activity');
       var div_database_locks = document.getElementById('database_locks');
       var div_database_prepared = document.getElementById('database_prepared');
-      var dataset_sessions = [];
-      var data_sessions = [];
-      var dataset_tps = [];
-      var data_tps = [];
-      var dataset_ti = [];
-      var data_ti = [];
-      var dataset_to = [];
-      var data_to = [];
-      var dataset_bio = [];
-      var data_bio = [];
-
-      var options_line = {
-        parseFloat: false,
-        xaxis: {
-          min: 100,
-          max: 0,
-          autoscale: 0,
-        },
-        yaxis: {
-          autoscale: 1,
-        },
-        legend: {
-          position: 'nw',
-          backgroundColor: '#D2E8FF',
-        },
-      };
-
-      // Display graphs
-      if(show_graphs) {
-        // Render the graphs
-        pgAdmin.Dashboard.render_chart(
-          div_sessions, data_sessions, dataset_sessions, sid, did,
-          url_for('dashboard.session_stats'), options_line, false,
-          session_stats_refresh
-        );
-        pgAdmin.Dashboard.render_chart(
-          div_tps, data_tps, dataset_tps, sid, did,
-          url_for('dashboard.tps_stats'), options_line, true,
-          tps_stats_refresh
-        );
-        pgAdmin.Dashboard.render_chart(
-          div_ti, data_ti, dataset_ti, sid, did,
-          url_for('dashboard.ti_stats'), options_line, true,
-          ti_stats_refresh
-        );
-        pgAdmin.Dashboard.render_chart(
-          div_to, data_to, dataset_to, sid, did,
-          url_for('dashboard.to_stats'), options_line, true,
-          to_stats_refresh
-        );
-        pgAdmin.Dashboard.render_chart(
-          div_bio, data_bio, dataset_bio, sid, did,
-          url_for('dashboard.bio_stats'), options_line, true,
-          bio_stats_refresh
-        );
-      }
 
       // Display server activity
-      if (show_database_activity) {
+      if (self.preferences.show_activity) {
         var database_activity_columns = [{
           name: 'pid',
           label: gettext('PID'),
@@ -1103,7 +1110,7 @@ define('pgadmin.dashboard', [
           cell: 'string',
         }];
 
-        if (version < 90600) {
+        if (self.version < 90600) {
           database_activity_columns = database_activity_columns.concat(
             [{
               name: 'waiting',
@@ -1134,7 +1141,7 @@ define('pgadmin.dashboard', [
 
         // Add version to each field
         _.each(subNodeFieldsModel[0].fields, function(obj) {
-          obj['version'] = version;
+          obj['version'] = self.version;
         });
 
         // Add cancel active query button
@@ -1143,7 +1150,7 @@ define('pgadmin.dashboard', [
           label: '',
           cell: SessionDetailsCell,
           cell_priority: -1,
-          postgres_version: version,
+          postgres_version: self.version,
           schema: subNodeFieldsModel,
         });
 
@@ -1155,7 +1162,7 @@ define('pgadmin.dashboard', [
           editable: false,
           cell_priority: -1,
           canDeleteRow: pgAdmin.Dashboard.can_take_action,
-          postgres_version: version,
+          postgres_version: self.version,
         });
         database_activity_columns.unshift({
           name: 'pg-backform-delete',
@@ -1165,7 +1172,7 @@ define('pgadmin.dashboard', [
           editable: false,
           cell_priority: -1,
           canDeleteRow: pgAdmin.Dashboard.can_take_action,
-          postgres_version: version,
+          postgres_version: self.version,
         });
 
         var database_locks_columns = [{
@@ -1258,22 +1265,19 @@ define('pgadmin.dashboard', [
 
         // Render the tabs, but only get data for the activity tab for now
         pgAdmin.Dashboard.render_grid(
-          div_database_activity, sid, did, url_for('dashboard.activity'),
-          database_activity_columns
+          div_database_activity, url_for('dashboard.activity'), database_activity_columns
         );
         pgAdmin.Dashboard.render_grid(
-          div_database_locks, sid, did, url_for('dashboard.locks'),
-          database_locks_columns
+          div_database_locks, url_for('dashboard.locks'), database_locks_columns
         );
         pgAdmin.Dashboard.render_grid(
-          div_database_prepared, sid, did, url_for('dashboard.prepared'),
-          database_prepared_columns
+          div_database_prepared, url_for('dashboard.prepared'), database_prepared_columns
         );
 
         pgAdmin.Dashboard.render_grid_data(div_database_activity);
 
         // (Re)render the appropriate tab
-        $('a[data-toggle="tab"]').on('shown.bs.tab', function(e) {
+        $('a[data-toggle="tab"]').off('shown.bs.tab').on('shown.bs.tab', function(e) {
           switch ($(e.target).attr('aria-controls')) {
           case 'tab_database_activity':
             pgAdmin.Dashboard.render_grid_data(div_database_activity);
@@ -1290,7 +1294,7 @@ define('pgadmin.dashboard', [
         });
 
         // Handle button clicks
-        $('button').on('click',() => {
+        $('button').off('click').on('click',() => {
           switch (this.id) {
           case 'btn_database_activity_refresh':
             pgAdmin.Dashboard.render_grid_data(div_database_activity);
@@ -1308,7 +1312,12 @@ define('pgadmin.dashboard', [
       }
     },
     toggleVisibility: function(flag) {
+//      let self = this;
       dashboardVisible = flag;
+
+//      if(dashboardVisible) {
+//        self.init_dashboard();
+//      }
     },
     can_take_action: function(m) {
       // We will validate if user is allowed to cancel the active query

@@ -81,6 +81,8 @@ class PartitionsModule(CollectionNodeModule):
         super(PartitionsModule, self).__init__(*args, **kwargs)
         self.min_ver = 100000
         self.max_ver = None
+        self.min_ppasver = 100000
+        self.max_ppasver = None
 
     def get_nodes(self, gid, sid, did, scid, **kwargs):
         """
@@ -237,10 +239,6 @@ class PartitionsView(BaseTableView, DataTypeReader, VacuumSettings):
                     nodes.extend(module.get_nodes(**kwargs))
             else:
                 nodes.extend(module.get_nodes(**kwargs))
-
-        # Explicitly include 'partition' module as we had excluded it during
-        # registration.
-        nodes.extend(self.blueprint.get_nodes(**kwargs))
 
         # Return sorted nodes based on label
         return make_json_response(

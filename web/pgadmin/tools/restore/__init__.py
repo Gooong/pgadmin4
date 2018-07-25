@@ -86,8 +86,7 @@ class RestoreMessage(IProcessDesc):
             else:
                 self.cmd += cmdArg(arg)
 
-    @property
-    def message(self):
+    def get_server_details(self):
         # Fetch the server details like hostname, port, roles etc
         s = Server.query.filter_by(
             id=self.sid, user_id=current_user.id
@@ -100,30 +99,25 @@ class RestoreMessage(IProcessDesc):
         host = manager.local_bind_host if manager.use_ssh_tunnel else s.host
         port = manager.local_bind_port if manager.use_ssh_tunnel else s.port
 
+        return s.name, host, port
+
+    @property
+    def message(self):
+        name, host, port = self.get_server_details()
+
         return _("Restoring backup on the server '{0}'...").format(
-            "{0} ({1}:{2})".format(s.name, host, port),
+            "{0} ({1}:{2})".format(name, host, port),
         )
 
     def details(self, cmd, args):
-        # Fetch the server details like hostname, port, roles etc
-        s = Server.query.filter_by(
-            id=self.sid, user_id=current_user.id
-        ).first()
-
-        from pgadmin.utils.driver import get_driver
-        driver = get_driver(PG_DEFAULT_DRIVER)
-        manager = driver.connection_manager(self.sid)
-
-        host = manager.local_bind_host if manager.use_ssh_tunnel else s.host
-        port = manager.local_bind_port if manager.use_ssh_tunnel else s.port
-
+        name, host, port = self.get_server_details()
         res = '<div class="h5">'
 
         res += html.safe_str(
             _(
                 "Restoring backup on the server '{0}'..."
             ).format(
-                "{0} ({1}:{2})".format(s.name, host, port)
+                "{0} ({1}:{2})".format(name, host, port)
             )
         )
 
@@ -174,7 +168,7 @@ def filename_with_file_manager_path(_file):
     elif not os.path.isabs(_file):
         _file = os.path.join(document_dir(), _file)
 
-    if not os.path.isfile(_file):
+    if not os.path.isfile(_file) and not os.path.exists(_file):
         return None
 
     return fs_short_path(_file)
@@ -206,6 +200,7 @@ def create_restore_job(sid):
 
     if _file is None:
         return make_json_response(
+            status=410,
             success=0,
             errormsg=_("File could not be found.")
         )
@@ -304,13 +299,13 @@ def create_restore_job(sid):
         if data['format'] == 'directory':
             args.extend(['--format=d'])
 
-        set_value('pre_data', '--section=pre-data', False)
-        set_value('data', '--section=data', False)
-        set_value('post_data', '--section=post-data', False)
+        set_param('pre_data', '--section=pre-data')
+        set_param('data', '--section=data')
+        set_param('post_data', '--section=post-data')
 
         if not set_param('only_data', '--data-only'):
             set_param('dns_owner', '--no-owner')
-            set_param('dns_privilege ', '--no-privileges')
+            set_param('dns_privilege', '--no-privileges')
             set_param('dns_tablespace', '--no-tablespaces')
 
         if not set_param('only_schema', '--schema-only'):
@@ -319,8 +314,8 @@ def create_restore_job(sid):
         set_param('include_create_database', '--create')
         set_param('clean', '--clean')
         set_param('single_transaction', '--single-transaction')
-        set_param('no_data_fail_table ', '--no-data-for-failed-tables')
-        set_param('use_set_session_auth ', '--use-set-session-authorization')
+        set_param('no_data_fail_table', '--no-data-for-failed-tables')
+        set_param('use_set_session_auth', '--use-set-session-authorization')
         set_param('exit_on_error', '--exit-on-error')
 
         set_value('no_of_jobs', '--jobs', True)
@@ -347,7 +342,15 @@ def create_restore_job(sid):
             cmd=utility, args=args
         )
         manager.export_password_env(p.id)
-        p.set_env_variables(server)
+        # Check for connection timeout and if it is greater than 0 then
+        # set the environment variable PGCONNECT_TIMEOUT.
+        if manager.connect_timeout > 0:
+            env = dict()
+            env['PGCONNECT_TIMEOUT'] = str(manager.connect_timeout)
+            p.set_env_variables(server, env=env)
+        else:
+            p.set_env_variables(server)
+
         p.start()
         jid = p.id
     except Exception as e:

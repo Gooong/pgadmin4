@@ -17,7 +17,7 @@ define('tools.querytool', [
   'sources/sqleditor/filter_dialog',
   'sources/sqleditor/geometry_viewer',
   'sources/history/index.js',
-  'sources/../jsx/history/query_history',
+  'sourcesjsx/history/query_history',
   'react', 'react-dom',
   'sources/keyboard_shortcuts',
   'sources/sqleditor/query_tool_actions',
@@ -26,6 +26,7 @@ define('tools.querytool', [
   'sources/modify_animation',
   'sources/sqleditor/calculate_query_run_time',
   'sources/sqleditor/call_render_after_poll',
+  'sources/sqleditor/query_tool_preferences',
   'sources/../bundle/slickgrid',
   'pgadmin.file_manager',
   'backgrid.sizeable.columns',
@@ -39,7 +40,7 @@ define('tools.querytool', [
   XCellSelectionModel, setStagedRows, SqlEditorUtils, ExecuteQuery, httpErrorHandler, FilterHandler, GeometryViewerDialog,
   HistoryBundle, queryHistory, React, ReactDOM,
   keyboardShortcuts, queryToolActions, queryToolNotifications, Datagrid,
-  modifyAnimation, calculateQueryRunTime, callRenderAfterPoll) {
+  modifyAnimation, calculateQueryRunTime, callRenderAfterPoll, queryToolPref) {
   /* Return back, this has been called more than once */
   if (pgAdmin.SqlEditor)
     return pgAdmin.SqlEditor;
@@ -59,6 +60,11 @@ define('tools.querytool', [
       this.$el = opts.el;
       this.handler = opts.handler;
       this.handler['col_size'] = {};
+      let browser = window.opener ?
+              window.opener.pgAdmin.Browser : window.top.pgAdmin.Browser;
+      this.preferences = browser.get_preferences_for_module('sqleditor');
+      this.handler.preferences = this.preferences;
+      this.connIntervalId = null;
     },
 
     // Bind all the events
@@ -115,15 +121,30 @@ define('tools.querytool', [
       //'click .btn-show-geometry': 'on_show_geometry',
     },
 
+    reflectPreferences: function() {
+      let self = this,
+        browser = window.opener ?
+              window.opener.pgAdmin.Browser : window.top.pgAdmin.Browser;
+
+      /* pgBrowser is different obj from window.top.pgAdmin.Browser
+       * Make sure to get only the latest update. Older versions will be discarded
+       * if function is called by older events.
+       * This works for new tab sql editor also as it polls if latest version available
+       * This is required because sql editor can update preferences directly
+       */
+      if(pgBrowser.preference_version() < browser.preference_version()){
+        pgBrowser.preference_version(browser.preference_version());
+        self.preferences = browser.get_preferences_for_module('sqleditor');
+        self.handler.preferences = self.preferences;
+        queryToolPref.updateUIPreferences(self);
+      }
+    },
+
     // This function is used to render the template.
     render: function() {
       var self = this;
 
       $('.editor-title').text(_.unescape(self.editor_title));
-      self.checkConnectionStatus();
-
-      // Fetch and assign the shortcuts to current instance
-      self.keyboardShortcutConfig = queryToolActions.getKeyboardShortcuts(self);
 
       // Updates connection status flag
       self.gain_focus = function() {
@@ -186,13 +207,7 @@ define('tools.querytool', [
         },
         gutters: ['CodeMirror-linenumbers', 'CodeMirror-foldgutter'],
         extraKeys: pgBrowser.editor_shortcut_keys,
-        indentWithTabs: pgAdmin.Browser.editor_options.indent_with_tabs,
-        indentUnit: pgAdmin.Browser.editor_options.tabSize,
-        tabSize: pgAdmin.Browser.editor_options.tabSize,
-        lineWrapping: pgAdmin.Browser.editor_options.wrapCode,
         scrollbarStyle: 'simple',
-        autoCloseBrackets: pgAdmin.Browser.editor_options.insert_pair_brackets,
-        matchBrackets: pgAdmin.Browser.editor_options.brace_matching,
       });
 
       // Refresh Code mirror on SQL panel resize to
@@ -273,32 +288,32 @@ define('tools.querytool', [
       self.render_history_grid();
       queryToolNotifications.renderNotificationsGrid(self.notifications_panel);
 
-      if (!self.handler.is_new_browser_tab) {
+      if (!self.preferences.new_browser_tab) {
         // Listen on the panel closed event and notify user to save modifications.
         _.each(window.top.pgAdmin.Browser.docker.findPanels('frm_datagrid'), function(p) {
           if (p.isVisible()) {
-            if (self.handler.prompt_save_changes) {
-              p.on(wcDocker.EVENT.CLOSING, function() {
-                // Only if we can edit data then perform this check
-                var notify = false,
-                  msg;
-                if (self.handler.can_edit) {
-                  var data_store = self.handler.data_store;
-                  if (data_store && (_.size(data_store.added) ||
-                      _.size(data_store.updated))) {
-                    msg = gettext('The data has changed. Do you want to save changes?');
-                    notify = true;
-                  }
-                } else if (self.handler.is_query_tool && self.handler.is_query_changed) {
-                  msg = gettext('The text has changed. Do you want to save changes?');
+            p.on(wcDocker.EVENT.CLOSING, function() {
+              // Only if we can edit data then perform this check
+              var notify = false,
+                msg;
+              if (self.handler.can_edit
+                  && self.preferences.prompt_save_data_changes) {
+                var data_store = self.handler.data_store;
+                if (data_store && (_.size(data_store.added) ||
+                    _.size(data_store.updated))) {
+                  msg = gettext('The data has changed. Do you want to save changes?');
                   notify = true;
                 }
-                if (notify) {
-                  return self.user_confirmation(p, msg);
-                }
-                return true;
-              });
-            }
+              } else if (self.handler.is_query_tool && self.handler.is_query_changed
+                         && self.preferences.prompt_save_query_changes) {
+                msg = gettext('The text has changed. Do you want to save changes?');
+                notify = true;
+              }
+              if (notify) {
+                return self.user_confirmation(p, msg);
+              }
+              return true;
+            });
 
             // Set focus on query tool of active panel
             p.on(wcDocker.EVENT.GAIN_FOCUS, function() {
@@ -415,104 +430,98 @@ define('tools.querytool', [
               method: 'POST',
               contentType: 'application/json',
               data: JSON.stringify(self.data),
-              success: function(res) {
-                var result = [];
+            })
+            .done(function(res) {
+              var result = [];
 
-                _.each(res.data.result, function(obj, key) {
-                  result.push({
-                    text: key,
-                    type: obj.object_type,
-                    render: self.hint_render,
-                  });
+              _.each(res.data.result, function(obj, key) {
+                result.push({
+                  text: key,
+                  type: obj.object_type,
+                  render: self.hint_render,
                 });
+              });
 
-                // Sort function to sort the suggestion's alphabetically.
-                result.sort(function(a, b) {
-                  var textA = a.text.toLowerCase(),
-                    textB = b.text.toLowerCase();
-                  if (textA < textB) //sort string ascending
-                    return -1;
-                  if (textA > textB)
-                    return 1;
-                  return 0; //default return value (no sorting)
-                });
+              // Sort function to sort the suggestion's alphabetically.
+              result.sort(function(a, b) {
+                var textA = a.text.toLowerCase(),
+                  textB = b.text.toLowerCase();
+                if (textA < textB) //sort string ascending
+                  return -1;
+                if (textA > textB)
+                  return 1;
+                return 0; //default return value (no sorting)
+              });
 
-                /*
-                 * Below logic find the start and end point
-                 * to replace the selected auto complete suggestion.
-                 */
-                var token = self.editor.getTokenAt(cur),
-                  start, end, search;
-                if (token.end > cur.ch) {
-                  token.end = cur.ch;
-                  token.string = token.string.slice(0, cur.ch - token.start);
-                }
+              /*
+               * Below logic find the start and end point
+               * to replace the selected auto complete suggestion.
+               */
+              var token = self.editor.getTokenAt(cur),
+                start, end, search;
+              if (token.end > cur.ch) {
+                token.end = cur.ch;
+                token.string = token.string.slice(0, cur.ch - token.start);
+              }
 
-                if (token.string.match(/^[.`\w@]\w*$/)) {
-                  search = token.string;
-                  start = token.start;
-                  end = token.end;
-                } else {
-                  start = end = cur.ch;
-                  search = '';
-                }
+              if (token.string.match(/^[.`\w@]\w*$/)) {
+                search = token.string;
+                start = token.start;
+                end = token.end;
+              } else {
+                start = end = cur.ch;
+                search = '';
+              }
 
-                /*
-                 * Added 1 in the start position if search string
-                 * started with "." or "`" else auto complete of code mirror
-                 * will remove the "." when user select any suggestion.
-                 */
-                if (search.charAt(0) == '.' || search.charAt(0) == '``')
-                  start += 1;
+              /*
+               * Added 1 in the start position if search string
+               * started with "." or "`" else auto complete of code mirror
+               * will remove the "." when user select any suggestion.
+               */
+              if (search.charAt(0) == '.' || search.charAt(0) == '``')
+                start += 1;
 
-                cb({
-                  list: result,
-                  from: {
-                    line: self.current_line,
-                    ch: start,
-                  },
-                  to: {
-                    line: self.current_line,
-                    ch: end,
-                  },
-                });
-              },
-              error:function(e) {
-                return httpErrorHandler.handleLoginRequiredAndTransactionRequired(
-                  pgAdmin, self, e, null, [], false
-                );
-              },
+              cb({
+                list: result,
+                from: {
+                  line: self.current_line,
+                  ch: start,
+                },
+                to: {
+                  line: self.current_line,
+                  ch: end,
+                },
+              });
+            })
+            .fail(function(e) {
+              return httpErrorHandler.handleLoginRequiredAndTransactionRequired(
+                pgAdmin, self, e, null, [], false
+              );
             });
           }.bind(ctx),
         };
       });
-    },
 
-    // This function will check the connection status at specific
-    // interval defined by the user in preference
-    checkConnectionStatus: function() {
-      var self = this,
-        preference = window.top.pgAdmin.Browser.get_preference(
-          'sqleditor', 'connection_status_fetch_time'
-        ),
-        display_status = window.top.pgAdmin.Browser.get_preference(
-          'sqleditor', 'connection_status'
-        );
-      if(!preference && self.handler.is_new_browser_tab) {
-        preference = window.opener.pgAdmin.Browser.get_preference(
-          'sqleditor', 'connection_status_fetch_time'
-        );
-        display_status = window.opener.pgAdmin.Browser.get_preference(
-          'sqleditor', 'connection_status'
-        );
-      }
 
-      // Only enable pooling if it is enabled
-      if (display_status && display_status.value) {
-        SqlEditorUtils.updateConnectionStatus(
-          self.handler,
-          preference.value
-        );
+      self.reflectPreferences();
+
+      /* Register for preference changed event broadcasted in parent
+       * to reload the shorcuts. As sqleditor is in iFrame of wcDocker
+       * window parent is referred
+       */
+      pgBrowser.onPreferencesChange('sqleditor', function() {
+        self.reflectPreferences();
+      });
+
+      /* If sql editor is in a new tab, event fired is not available
+       * instead, a poller is set up who will check
+       */
+      if(self.preferences.new_browser_tab) {
+        setInterval(()=>{
+          if(window.opener.pgAdmin) {
+            self.reflectPreferences();
+          }
+        }, 1000);
       }
     },
 
@@ -821,6 +830,11 @@ define('tools.querytool', [
       };
 
       self.handler.slickgrid = grid;
+      self.handler.slickgrid.CSVOptions = {
+        quoting: self.preferences.results_grid_quoting,
+        quote_char: self.preferences.results_grid_quote_char,
+        field_separator: self.preferences.results_grid_field_separator,
+      };
 
       // Listener function to watch selected rows from grid
       if (editor_data.selection) {
@@ -919,29 +933,6 @@ define('tools.querytool', [
             handleQueryOutputKeyboardEvent(event, args);
           });
         } else {
-          var pref_cache = undefined;
-          args.grid.CSVOptions = {};
-
-          if (self.handler.is_new_browser_tab) {
-            pref_cache = window.opener.pgAdmin.Browser.preferences_cache;
-          } else {
-            pref_cache = window.top.pgAdmin.Browser.preferences_cache;
-          }
-
-          // Get CSV options from preferences cache
-          args.grid.CSVOptions.quoting = _.findWhere(pref_cache, {
-            'module': 'sqleditor',
-            'name': 'results_grid_quoting',
-          }).value;
-          args.grid.CSVOptions.quote_char = _.findWhere(pref_cache, {
-            'module': 'sqleditor',
-            'name': 'results_grid_quote_char',
-          }).value;
-          args.grid.CSVOptions.field_separator = _.findWhere(pref_cache, {
-            'module': 'sqleditor',
-            'name': 'results_grid_field_separator',
-          }).value;
-
           handleQueryOutputKeyboardEvent(event, args);
         }
       });
@@ -1126,30 +1117,30 @@ define('tools.querytool', [
       $.ajax({
         url: url,
         method: 'GET',
-        success: function(res) {
-          self.handler.has_more_rows = res.data.has_more_rows;
-          $('#btn-flash').prop('disabled', false);
-          self.handler.trigger('pgadmin-sqleditor:loading-icon:hide');
-          self.update_grid_data(res.data.result);
-          self.handler.fetching_rows = false;
-          if (typeof cb == 'function') {
-            cb();
-          }
-        },
-        error: function(e) {
-          $('#btn-flash').prop('disabled', false);
-          self.handler.trigger('pgadmin-sqleditor:loading-icon:hide');
-          self.handler.has_more_rows = false;
-          self.handler.fetching_rows = false;
-          if (typeof cb == 'function') {
-            cb();
-          }
+      })
+      .done(function(res) {
+        self.handler.has_more_rows = res.data.has_more_rows;
+        $('#btn-flash').prop('disabled', false);
+        self.handler.trigger('pgadmin-sqleditor:loading-icon:hide');
+        self.update_grid_data(res.data.result);
+        self.handler.fetching_rows = false;
+        if (typeof cb == 'function') {
+          cb();
+        }
+      })
+      .fail(function(e) {
+        $('#btn-flash').prop('disabled', false);
+        self.handler.trigger('pgadmin-sqleditor:loading-icon:hide');
+        self.handler.has_more_rows = false;
+        self.handler.fetching_rows = false;
+        if (typeof cb == 'function') {
+          cb();
+        }
 
-          let msg = httpErrorHandler.handleQueryToolAjaxError(
-            pgAdmin, self, e, null, [], false
-          );
-          self.update_msg_history(false, msg);
-        },
+        let msg = httpErrorHandler.handleQueryToolAjaxError(
+          pgAdmin, self, e, null, [], false
+        );
+        self.update_msg_history(false, msg);
       });
     },
 
@@ -1212,7 +1203,10 @@ define('tools.querytool', [
     render_history_grid: function() {
       var self = this;
 
-      self.history_collection = new HistoryBundle.HistoryCollection([]);
+      /* Should not reset if function called again */
+      if(!self.history_collection) {
+        self.history_collection = new HistoryBundle.HistoryCollection([]);
+      }
 
       var historyComponent;
       var historyCollectionReactElement = React.createElement(
@@ -1221,9 +1215,13 @@ define('tools.querytool', [
           ref: function(component) {
             historyComponent = component;
           },
+          sqlEditorPref: {
+            sql_font_size: SqlEditorUtils.calcFontSize(this.preferences.sql_font_size),
+          },
         });
       ReactDOM.render(historyCollectionReactElement, $('#history_grid')[0]);
 
+      self.history_panel.off(wcDocker.EVENT.VISIBILITY_CHANGED);
       self.history_panel.on(wcDocker.EVENT.VISIBILITY_CHANGED, function() {
         historyComponent.refocus();
       });
@@ -1436,29 +1434,7 @@ define('tools.querytool', [
 
     // Callback function for copy button click.
     on_copy_row: function() {
-      var self = this,
-        pref_cache = undefined;
-      self.grid.CSVOptions = {};
-
-      if (self.handler.is_new_browser_tab) {
-        pref_cache = window.opener.pgAdmin.Browser.preferences_cache;
-      } else {
-        pref_cache = window.top.pgAdmin.Browser.preferences_cache;
-      }
-
-      // Get CSV options from preferences cache
-      self.grid.CSVOptions.quoting = _.findWhere(pref_cache, {
-        'module': 'sqleditor',
-        'name': 'results_grid_quoting',
-      }).value;
-      self.grid.CSVOptions.quote_char = _.findWhere(pref_cache, {
-        'module': 'sqleditor',
-        'name': 'results_grid_quote_char',
-      }).value;
-      self.grid.CSVOptions.field_separator = _.findWhere(pref_cache, {
-        'module': 'sqleditor',
-        'name': 'results_grid_field_separator',
-      }).value;
+      var self = this;
 
       // Trigger the copy signal to the SqlEditorController class
       self.handler.trigger(
@@ -1728,7 +1704,7 @@ define('tools.querytool', [
     keyAction: function(event) {
       var panel_id, self = this;
       panel_id = keyboardShortcuts.processEventQueryTool(
-        this.handler, this.keyboardShortcutConfig, queryToolActions, event
+        this.handler, queryToolActions, event
       );
 
       // If it return panel id then focus it
@@ -1953,23 +1929,17 @@ define('tools.querytool', [
        * header and loading icon and start execution of the sql query.
        */
       start: function(transId, is_query_tool, editor_title, script_type_url,
-          is_new_browser_tab, server_type, prompt_save_changes, url_params
+        server_type, url_params
       ) {
         var self = this;
 
         self.is_query_tool = is_query_tool;
         self.rows_affected = 0;
         self.marked_line_no = 0;
-        self.explain_verbose = false;
-        self.explain_costs = false;
-        self.explain_buffers = false;
-        self.explain_timing = false;
-        self.is_new_browser_tab = is_new_browser_tab;
         self.has_more_rows = false;
         self.fetching_rows = false;
         self.close_on_save = false;
         self.server_type = server_type;
-        self.prompt_save_changes = prompt_save_changes;
         self.url_params = url_params;
         self.script_type_url = script_type_url;
 
@@ -1996,25 +1966,25 @@ define('tools.querytool', [
             $.ajax({
               url: script_type_url,
               type:'GET',
-              success: function(res) {
-                self.gridView.query_tool_obj.refresh();
-                if (res && res !== '') {
-                  self.gridView.query_tool_obj.setValue(res);
-                }
-                self.init_events();
-              },
-              error: function(jqx) {
-                let msg = '';
-                self.init_events();
+            })
+            .done(function(res) {
+              self.gridView.query_tool_obj.refresh();
+              if (res && res !== '') {
+                self.gridView.query_tool_obj.setValue(res);
+              }
+              self.init_events();
+            })
+            .fail(function(jqx) {
+              let msg = '';
+              self.init_events();
 
-                msg = httpErrorHandler.handleQueryToolAjaxError(
-                  pgAdmin, self, jqx, null, [], false
-                );
+              msg = httpErrorHandler.handleQueryToolAjaxError(
+                pgAdmin, self, jqx, null, [], false
+              );
 
-                pgBrowser.report_error(
-                  S(gettext('Error fetching SQL for script: %s.')).sprintf(msg).value()
-                );
-              },
+              pgBrowser.report_error(
+                S(gettext('Error fetching SQL for script: %s.')).sprintf(msg).value()
+              );
             });
           } else {
             self.init_events();
@@ -2042,7 +2012,6 @@ define('tools.querytool', [
         // Listen to the codemirror on text change event
         // only in query editor tool
         if (self.is_query_tool) {
-          self.get_preferences();
           self.gridView.query_tool_obj.on('change', self._on_query_change.bind(self));
         }
 
@@ -2137,53 +2106,53 @@ define('tools.querytool', [
         $.ajax({
           url: url,
           method: 'GET',
-          success: function(res) {
-            if (res.data.status) {
-              self.can_edit = res.data.can_edit;
-              self.can_filter = res.data.can_filter;
-              self.info_notifier_timeout = res.data.info_notifier_timeout;
+        })
+        .done(function(res) {
+          if (res.data.status) {
+            self.can_edit = res.data.can_edit;
+            self.can_filter = res.data.can_filter;
+            self.info_notifier_timeout = res.data.info_notifier_timeout;
 
-              // Set the sql query to the SQL panel
-              self.gridView.query_tool_obj.setValue(res.data.sql);
-              self.query = res.data.sql;
+            // Set the sql query to the SQL panel
+            self.gridView.query_tool_obj.setValue(res.data.sql);
+            self.query = res.data.sql;
 
 
-              /* If filter is applied then remove class 'btn-default'
-               * and add 'btn-warning' to change the colour of the button.
-               */
-              if (self.can_filter && res.data.filter_applied) {
-                $('#btn-filter').removeClass('btn-default');
-                $('#btn-filter-dropdown').removeClass('btn-default');
-                $('#btn-filter').addClass('btn-primary');
-                $('#btn-filter-dropdown').addClass('btn-primary');
-              } else {
-                $('#btn-filter').removeClass('btn-primary');
-                $('#btn-filter-dropdown').removeClass('btn-primary');
-                $('#btn-filter').addClass('btn-default');
-                $('#btn-filter-dropdown').addClass('btn-default');
-              }
-              $('#btn-save').prop('disabled', true);
-              $('#btn-file-menu-dropdown').prop('disabled', true);
-              $('#btn-copy-row').prop('disabled', true);
-              $('#btn-paste-row').prop('disabled', true);
-
-              // Set the combo box value
-              $('.limit').val(res.data.limit);
-
-              // If status is True then poll the result.
-              self._poll();
+            /* If filter is applied then remove class 'btn-default'
+             * and add 'btn-warning' to change the colour of the button.
+             */
+            if (self.can_filter && res.data.filter_applied) {
+              $('#btn-filter').removeClass('btn-default');
+              $('#btn-filter-dropdown').removeClass('btn-default');
+              $('#btn-filter').addClass('btn-primary');
+              $('#btn-filter-dropdown').addClass('btn-primary');
             } else {
-              self.trigger('pgadmin-sqleditor:loading-icon:hide');
-              self.update_msg_history(false, res.data.result);
+              $('#btn-filter').removeClass('btn-primary');
+              $('#btn-filter-dropdown').removeClass('btn-primary');
+              $('#btn-filter').addClass('btn-default');
+              $('#btn-filter-dropdown').addClass('btn-default');
             }
-          },
-          error: function(e) {
+            $('#btn-save').prop('disabled', true);
+            $('#btn-file-menu-dropdown').prop('disabled', true);
+            $('#btn-copy-row').prop('disabled', true);
+            $('#btn-paste-row').prop('disabled', true);
+
+            // Set the combo box value
+            $('.limit').val(res.data.limit);
+
+            // If status is True then poll the result.
+            self._poll();
+          } else {
             self.trigger('pgadmin-sqleditor:loading-icon:hide');
-            let msg = httpErrorHandler.handleQueryToolAjaxError(
-              pgAdmin, self, e, '_run_query', [], true
-            );
-            self.update_msg_history(false, msg);
-          },
+            self.update_msg_history(false, res.data.result);
+          }
+        })
+        .fail(function(e) {
+          self.trigger('pgadmin-sqleditor:loading-icon:hide');
+          let msg = httpErrorHandler.handleQueryToolAjaxError(
+            pgAdmin, self, e, '_run_query', [], true
+          );
+          self.update_msg_history(false, msg);
         });
       },
 
@@ -2678,132 +2647,132 @@ define('tools.querytool', [
             method: 'POST',
             contentType: 'application/json',
             data: JSON.stringify(req_data),
-            success: function(res) {
-              var grid = self.slickgrid,
-                dataView = grid.getData(),
-                data_length = dataView.getLength(),
-                data = [];
+          })
+          .done(function(res) {
+            var grid = self.slickgrid,
+              dataView = grid.getData(),
+              data_length = dataView.getLength(),
+              data = [];
 
-              if (res.data.status) {
-                if(is_added) {
-                  // Update the rows in a grid after addition
+            if (res.data.status) {
+              if(is_added) {
+                // Update the rows in a grid after addition
+                dataView.beginUpdate();
+                _.each(res.data.query_result, function(r) {
+                  if (!_.isNull(r.row_added)) {
+                    // Fetch temp_id returned by server after addition
+                    var row_id = Object.keys(r.row_added)[0];
+                    _.each(req_data.added_index, function(v, k) {
+                      if (v == row_id) {
+                        // Fetch item data through row index
+                        var item = grid.getDataItem(k);
+                        _.extend(item, r.row_added[row_id]);
+                      }
+                    });
+                  }
+                });
+                dataView.endUpdate();
+              }
+              // Remove flag is_row_copied from copied rows
+              _.each(data, function(row) {
+                if (row.is_row_copied) {
+                  delete row.is_row_copied;
+                }
+              });
+
+              // Remove 2d copied_rows array
+              if (grid.copied_rows) {
+                delete grid.copied_rows;
+              }
+
+              // Remove deleted rows from client as well
+              if (is_deleted) {
+                var rows = grid.getSelectedRows();
+                if (data_length == rows.length) {
+                  // This means all the rows are selected, clear all data
+                  data = [];
+                  dataView.setItems(data, self.client_primary_key);
+                } else {
                   dataView.beginUpdate();
-                  _.each(res.data.query_result, function(r) {
-                    if (!_.isNull(r.row_added)) {
-                      // Fetch temp_id returned by server after addition
-                      var row_id = Object.keys(r.row_added)[0];
-                      _.each(req_data.added_index, function(v, k) {
-                        if (v == row_id) {
-                          // Fetch item data through row index
-                          var item = grid.getDataItem(k);
-                          _.extend(item, r.row_added[row_id]);
-                        }
-                      });
-                    }
-                  });
+                  for (var i = 0; i < rows.length; i++) {
+                    var item = grid.getDataItem(rows[i]);
+                    data.push(item);
+                    dataView.deleteItem(item[self.client_primary_key]);
+                  }
                   dataView.endUpdate();
                 }
-                // Remove flag is_row_copied from copied rows
-                _.each(data, function(row) {
-                  if (row.is_row_copied) {
-                    delete row.is_row_copied;
-                  }
-                });
-
-                // Remove 2d copied_rows array
-                if (grid.copied_rows) {
-                  delete grid.copied_rows;
-                }
-
-                // Remove deleted rows from client as well
-                if (is_deleted) {
-                  var rows = grid.getSelectedRows();
-                  if (data_length == rows.length) {
-                    // This means all the rows are selected, clear all data
-                    data = [];
-                    dataView.setItems(data, self.client_primary_key);
-                  } else {
-                    dataView.beginUpdate();
-                    for (var i = 0; i < rows.length; i++) {
-                      var item = grid.getDataItem(rows[i]);
-                      data.push(item);
-                      dataView.deleteItem(item[self.client_primary_key]);
-                    }
-                    dataView.endUpdate();
-                  }
-                  self.rows_to_delete.apply(self, [data]);
-                  grid.setSelectedRows([]);
-                }
-
+                self.rows_to_delete.apply(self, [data]);
                 grid.setSelectedRows([]);
-
-                // Reset data store
-                self.data_store = {
-                  'added': {},
-                  'updated': {},
-                  'deleted': {},
-                  'added_index': {},
-                  'updated_index': {},
-                };
-
-                // Reset old primary key data now
-                self.primary_keys_data = {};
-
-                // Clear msgs after successful save
-                $('.sql-editor-message').html('');
-
-                alertify.success(gettext('Data saved successfully.'));
-              } else {
-                // Something went wrong while saving data on the db server
-                $('#btn-flash').prop('disabled', false);
-                $('.sql-editor-message').text(res.data.result);
-                var err_msg = S(gettext('%s.')).sprintf(res.data.result).value();
-                alertify.error(err_msg, 20);
-                grid.setSelectedRows([]);
-                // To highlight the row at fault
-                if (_.has(res.data, '_rowid') &&
-                  (!_.isUndefined(res.data._rowid) || !_.isNull(res.data._rowid))) {
-                  var _row_index = self._find_rowindex(res.data._rowid);
-                  if (_row_index in self.data_store.added_index) {
-                    // Remove new row index from temp_list if save operation
-                    // fails
-                    var index = self.handler.temp_new_rows.indexOf(res.data._rowid);
-                    if (index > -1) {
-                      self.handler.temp_new_rows.splice(index, 1);
-                    }
-                    self.data_store.added[self.data_store.added_index[_row_index]].err = true;
-                  } else if (_row_index in self.data_store.updated_index) {
-                    self.data_store.updated[self.data_store.updated_index[_row_index]].err = true;
-                  }
-                }
-                grid.gotoCell(_row_index, 1);
               }
 
-              // Update the sql results in history tab
-              _.each(res.data.query_result, function(r) {
-                self.gridView.history_collection.add({
-                  'status': r.status,
-                  'start_time': self.query_start_time,
-                  'query': r.sql,
-                  'row_affected': r.rows_affected,
-                  'total_time': self.total_time,
-                  'message': r.result,
-                });
+              grid.setSelectedRows([]);
+
+              // Reset data store
+              self.data_store = {
+                'added': {},
+                'updated': {},
+                'deleted': {},
+                'added_index': {},
+                'updated_index': {},
+              };
+
+              // Reset old primary key data now
+              self.primary_keys_data = {};
+
+              // Clear msgs after successful save
+              $('.sql-editor-message').html('');
+
+              alertify.success(gettext('Data saved successfully.'));
+            } else {
+              // Something went wrong while saving data on the db server
+              $('#btn-flash').prop('disabled', false);
+              $('.sql-editor-message').text(res.data.result);
+              var err_msg = S(gettext('%s.')).sprintf(res.data.result).value();
+              alertify.error(err_msg, 20);
+              grid.setSelectedRows([]);
+              // To highlight the row at fault
+              if (_.has(res.data, '_rowid') &&
+                (!_.isUndefined(res.data._rowid) || !_.isNull(res.data._rowid))) {
+                var _row_index = self._find_rowindex(res.data._rowid);
+                if (_row_index in self.data_store.added_index) {
+                  // Remove new row index from temp_list if save operation
+                  // fails
+                  var index = self.handler.temp_new_rows.indexOf(res.data._rowid);
+                  if (index > -1) {
+                    self.handler.temp_new_rows.splice(index, 1);
+                  }
+                  self.data_store.added[self.data_store.added_index[_row_index]].err = true;
+                } else if (_row_index in self.data_store.updated_index) {
+                  self.data_store.updated[self.data_store.updated_index[_row_index]].err = true;
+                }
+              }
+              grid.gotoCell(_row_index, 1);
+            }
+
+            // Update the sql results in history tab
+            _.each(res.data.query_result, function(r) {
+              self.gridView.history_collection.add({
+                'status': r.status,
+                'start_time': self.query_start_time,
+                'query': r.sql,
+                'row_affected': r.rows_affected,
+                'total_time': self.total_time,
+                'message': r.result,
               });
-              self.trigger('pgadmin-sqleditor:loading-icon:hide');
+            });
+            self.trigger('pgadmin-sqleditor:loading-icon:hide');
 
-              grid.invalidate();
-              if (self.close_on_save) {
-                self.close();
-              }
-            },
-            error: function(e) {
-              let stateParams = [view, controller, save_as];
-              let msg = httpErrorHandler.handleQueryToolAjaxError(
-                pgAdmin, self, e, '_save', stateParams, true
-              );
-              self.update_msg_history(false, msg);
-            },
+            grid.invalidate();
+            if (self.close_on_save) {
+              self.close();
+            }
+          })
+          .fail(function(e) {
+            let stateParams = [view, controller, save_as];
+            let msg = httpErrorHandler.handleQueryToolAjaxError(
+              pgAdmin, self, e, '_save', stateParams, true
+            );
+            self.update_msg_history(false, msg);
           });
         }
       },
@@ -2856,7 +2825,7 @@ define('tools.querytool', [
       setTitle: function(title, unsafe) {
         var self = this;
 
-        if (self.is_new_browser_tab) {
+        if (self.preferences.new_browser_tab) {
           window.document.title = title;
         } else {
           _.each(window.top.pgAdmin.Browser.docker.findPanels('frm_datagrid'), function(p) {
@@ -2929,32 +2898,32 @@ define('tools.querytool', [
           method: 'POST',
           contentType: 'application/json',
           data: JSON.stringify(data),
-          success: function(res) {
-            self.gridView.query_tool_obj.setValue(res);
-            self.gridView.current_file = e;
-            self.setTitle(self.gridView.current_file.split('\\').pop().split('/').pop(), true);
-            self.trigger('pgadmin-sqleditor:loading-icon:hide');
-            // hide cursor
-            $busy_icon_div.removeClass('show_progress');
+        })
+        .done(function(res) {
+          self.gridView.query_tool_obj.setValue(res);
+          self.gridView.current_file = e;
+          self.setTitle(self.gridView.current_file.split('\\').pop().split('/').pop(), true);
+          self.trigger('pgadmin-sqleditor:loading-icon:hide');
+          // hide cursor
+          $busy_icon_div.removeClass('show_progress');
 
-            // disable save button on file save
-            $('#btn-save').prop('disabled', true);
-            $('#btn-file-menu-save').css('display', 'none');
+          // disable save button on file save
+          $('#btn-save').prop('disabled', true);
+          $('#btn-file-menu-save').css('display', 'none');
 
-            // Update the flag as new content is just loaded.
-            self.is_query_changed = false;
-            setTimeout(() => { self.gridView.query_tool_obj.focus(); }, 200);
-          },
-          error: function(e) {
-            self.trigger('pgadmin-sqleditor:loading-icon:hide');
-            let stateParams = [_e];
-            let msg = httpErrorHandler.handleQueryToolAjaxError(
-              pgAdmin, self, e, '_select_file_handler', stateParams, false
-            );
-            alertify.error(msg);
-            // hide cursor
-            $busy_icon_div.removeClass('show_progress');
-          },
+          // Update the flag as new content is just loaded.
+          self.is_query_changed = false;
+          setTimeout(() => { self.gridView.query_tool_obj.focus(); }, 200);
+        })
+        .fail(function(e) {
+          self.trigger('pgadmin-sqleditor:loading-icon:hide');
+          let stateParams = [_e];
+          let msg = httpErrorHandler.handleQueryToolAjaxError(
+            pgAdmin, self, e, '_select_file_handler', stateParams, false
+          );
+          alertify.error(msg);
+          // hide cursor
+          $busy_icon_div.removeClass('show_progress');
         });
       },
 
@@ -2977,32 +2946,32 @@ define('tools.querytool', [
           method: 'POST',
           contentType: 'application/json',
           data: JSON.stringify(data),
-          success: function(res) {
-            if (res.data.status) {
-              alertify.success(gettext('File saved successfully.'));
-              self.gridView.current_file = e;
-              self.setTitle(self.gridView.current_file.replace(/^.*[\\\/]/g, ''), true);
-              // disable save button on file save
-              $('#btn-save').prop('disabled', true);
-              $('#btn-file-menu-save').css('display', 'none');
+        })
+        .done(function(res) {
+          if (res.data.status) {
+            alertify.success(gettext('File saved successfully.'));
+            self.gridView.current_file = e;
+            self.setTitle(self.gridView.current_file.replace(/^.*[\\\/]/g, ''), true);
+            // disable save button on file save
+            $('#btn-save').prop('disabled', true);
+            $('#btn-file-menu-save').css('display', 'none');
 
-              // Update the flag as query is already saved.
-              self.is_query_changed = false;
-              setTimeout(() => { self.gridView.query_tool_obj.focus(); }, 200);
-            }
-            self.trigger('pgadmin-sqleditor:loading-icon:hide');
-            if (self.close_on_save) {
-              self.close();
-            }
-          },
-          error: function(e) {
-            self.trigger('pgadmin-sqleditor:loading-icon:hide');
-            let stateParams = [_e];
-            let msg = httpErrorHandler.handleQueryToolAjaxError(
-              pgAdmin, self, e, '_save_file_handler', stateParams, false
-            );
-            alertify.error(msg);
-          },
+            // Update the flag as query is already saved.
+            self.is_query_changed = false;
+            setTimeout(() => { self.gridView.query_tool_obj.focus(); }, 200);
+          }
+          self.trigger('pgadmin-sqleditor:loading-icon:hide');
+          if (self.close_on_save) {
+            self.close();
+          }
+        })
+        .fail(function(e) {
+          self.trigger('pgadmin-sqleditor:loading-icon:hide');
+          let stateParams = [_e];
+          let msg = httpErrorHandler.handleQueryToolAjaxError(
+            pgAdmin, self, e, '_save_file_handler', stateParams, false
+          );
+          alertify.error(msg);
         });
       },
 
@@ -3018,7 +2987,7 @@ define('tools.querytool', [
             var title = self.gridView.current_file.replace(/^.*[\\\/]/g, '') + ' *';
             self.setTitle(title, true);
           } else {
-            if (self.is_new_browser_tab) {
+            if (self.preferences.new_browser_tab) {
               title = window.document.title + ' *';
             } else {
               // Find the title of the visible panel
@@ -3103,26 +3072,26 @@ define('tools.querytool', [
           method: 'POST',
           contentType: 'application/json',
           data: JSON.stringify(data),
-          success: function(res) {
-            self.trigger('pgadmin-sqleditor:loading-icon:hide');
-            setTimeout(
-              function() {
-                if (res.data.status) {
-                  // Refresh the sql grid
-                  queryToolActions.executeQuery(self);
-                } else {
-                  alertify.alert(gettext('Filter By Selection Error'), res.data.result);
-                }
+        })
+        .done(function(res) {
+          self.trigger('pgadmin-sqleditor:loading-icon:hide');
+          setTimeout(
+            function() {
+              if (res.data.status) {
+                // Refresh the sql grid
+                queryToolActions.executeQuery(self);
+              } else {
+                alertify.alert(gettext('Filter By Selection Error'), res.data.result);
               }
-            );
-          },
-          error: function(e) {
-            self.trigger('pgadmin-sqleditor:loading-icon:hide');
-            let msg = httpErrorHandler.handleQueryToolAjaxError(
-              pgAdmin, self, e, '_include_filter', [], true
-            );
-            alertify.alert(gettext('Filter By Selection Error'), msg);
-          },
+            }
+          );
+        })
+        .fail(function(e) {
+          self.trigger('pgadmin-sqleditor:loading-icon:hide');
+          let msg = httpErrorHandler.handleQueryToolAjaxError(
+            pgAdmin, self, e, '_include_filter', [], true
+          );
+          alertify.alert(gettext('Filter By Selection Error'), msg);
         });
       },
 
@@ -3162,26 +3131,26 @@ define('tools.querytool', [
           method: 'POST',
           contentType: 'application/json',
           data: JSON.stringify(data),
-          success: function(res) {
-            self.trigger('pgadmin-sqleditor:loading-icon:hide');
-            setTimeout(
-              function() {
-                if (res.data.status) {
-                  // Refresh the sql grid
-                  queryToolActions.executeQuery(self);
-                } else {
-                  alertify.alert(gettext('Filter Exclude Selection Error'), res.data.result);
-                }
-              }, 10
-            );
-          },
-          error: function(e) {
-            self.trigger('pgadmin-sqleditor:loading-icon:hide');
-            let msg = httpErrorHandler.handleQueryToolAjaxError(
-              pgAdmin, self, e, '_exclude_filter', [], true
-            );
-            alertify.alert(gettext('Filter Exclude Selection Error'), msg);
-          },
+        })
+        .done(function(res) {
+          self.trigger('pgadmin-sqleditor:loading-icon:hide');
+          setTimeout(
+            function() {
+              if (res.data.status) {
+                // Refresh the sql grid
+                queryToolActions.executeQuery(self);
+              } else {
+                alertify.alert(gettext('Filter Exclude Selection Error'), res.data.result);
+              }
+            }, 10
+          );
+        })
+        .fail(function(e) {
+          self.trigger('pgadmin-sqleditor:loading-icon:hide');
+          let msg = httpErrorHandler.handleQueryToolAjaxError(
+            pgAdmin, self, e, '_exclude_filter', [], true
+          );
+          alertify.alert(gettext('Filter Exclude Selection Error'), msg);
         });
       },
 
@@ -3200,26 +3169,26 @@ define('tools.querytool', [
             'trans_id': self.transId,
           }),
           method: 'POST',
-          success: function(res) {
-            self.trigger('pgadmin-sqleditor:loading-icon:hide');
-            setTimeout(
-              function() {
-                if (res.data.status) {
-                  // Refresh the sql grid
-                  queryToolActions.executeQuery(self);
-                } else {
-                  alertify.alert(gettext('Remove Filter Error'), res.data.result);
-                }
+        })
+        .done(function(res) {
+          self.trigger('pgadmin-sqleditor:loading-icon:hide');
+          setTimeout(
+            function() {
+              if (res.data.status) {
+                // Refresh the sql grid
+                queryToolActions.executeQuery(self);
+              } else {
+                alertify.alert(gettext('Remove Filter Error'), res.data.result);
               }
-            );
-          },
-          error: function(e) {
-            self.trigger('pgadmin-sqleditor:loading-icon:hide');
-            let msg = httpErrorHandler.handleQueryToolAjaxError(
-              pgAdmin, self, e, '_remove_filter', [], true
-            );
-            alertify.alert(gettext('Remove Filter Error'), msg);
-          },
+            }
+          );
+        })
+        .fail(function(e) {
+          self.trigger('pgadmin-sqleditor:loading-icon:hide');
+          let msg = httpErrorHandler.handleQueryToolAjaxError(
+            pgAdmin, self, e, '_remove_filter', [], true
+          );
+          alertify.alert(gettext('Remove Filter Error'), msg);
         });
       },
 
@@ -3241,28 +3210,28 @@ define('tools.querytool', [
           method: 'POST',
           contentType: 'application/json',
           data: JSON.stringify(sql),
-          success: function(res) {
-            self.trigger('pgadmin-sqleditor:loading-icon:hide');
-            setTimeout(
-              function() {
-                if (res.data.status) {
-                  $('#filter').addClass('hidden');
-                  $('#editor-panel').removeClass('sql-editor-busy-fetching');
-                  // Refresh the sql grid
-                  queryToolActions.executeQuery(self);
-                } else {
-                  alertify.alert(gettext('Apply Filter Error'), res.data.result);
-                }
-              }, 10
-            );
-          },
-          error: function(e) {
-            self.trigger('pgadmin-sqleditor:loading-icon:hide');
-            let msg = httpErrorHandler.handleQueryToolAjaxError(
-              pgAdmin, self, e, '_apply_filter', [], true
-            );
-            alertify.alert(gettext('Apply Filter Error'), msg);
-          },
+        })
+        .done(function(res) {
+          self.trigger('pgadmin-sqleditor:loading-icon:hide');
+          setTimeout(
+            function() {
+              if (res.data.status) {
+                $('#filter').addClass('hidden');
+                $('#editor-panel').removeClass('sql-editor-busy-fetching');
+                // Refresh the sql grid
+                queryToolActions.executeQuery(self);
+              } else {
+                alertify.alert(gettext('Apply Filter Error'), res.data.result);
+              }
+            }, 10
+          );
+        })
+        .fail(function(e) {
+          self.trigger('pgadmin-sqleditor:loading-icon:hide');
+          let msg = httpErrorHandler.handleQueryToolAjaxError(
+            pgAdmin, self, e, '_apply_filter', [], true
+          );
+          alertify.alert(gettext('Apply Filter Error'), msg);
         });
       },
 
@@ -3367,25 +3336,25 @@ define('tools.querytool', [
           method: 'POST',
           contentType: 'application/json',
           data: JSON.stringify(limit),
-          success: function(res) {
-            self.trigger('pgadmin-sqleditor:loading-icon:hide');
-            setTimeout(
-              function() {
-                if (res.data.status) {
-                  // Refresh the sql grid
-                  queryToolActions.executeQuery(self);
-                } else
-                  alertify.alert(gettext('Change limit Error'), res.data.result);
-              }, 10
-            );
-          },
-          error: function(e) {
-            self.trigger('pgadmin-sqleditor:loading-icon:hide');
-            let msg = httpErrorHandler.handleQueryToolAjaxError(
-              pgAdmin, self, e, '_set_limit', [], true
-            );
-            alertify.alert(gettext('Change limit Error'), msg);
-          },
+        })
+        .done(function(res) {
+          self.trigger('pgadmin-sqleditor:loading-icon:hide');
+          setTimeout(
+            function() {
+              if (res.data.status) {
+                // Refresh the sql grid
+                queryToolActions.executeQuery(self);
+              } else
+                alertify.alert(gettext('Change limit Error'), res.data.result);
+            }, 10
+          );
+        })
+        .fail(function(e) {
+          self.trigger('pgadmin-sqleditor:loading-icon:hide');
+          let msg = httpErrorHandler.handleQueryToolAjaxError(
+            pgAdmin, self, e, '_set_limit', [], true
+          );
+          alertify.alert(gettext('Change limit Error'), msg);
         });
       },
 
@@ -3396,6 +3365,10 @@ define('tools.querytool', [
         $('#btn-edit-dropdown').prop('disabled', disabled);
         $('#btn-edit').prop('disabled', disabled);
         $('#btn-load-file').prop('disabled', disabled);
+        if (this.is_query_tool) {
+          // Cancel query tool needs opposite behaviour
+          $('#btn-cancel-query').prop('disabled', !disabled);
+        }
       },
 
       // This function will fetch the sql query from the text box
@@ -3487,32 +3460,28 @@ define('tools.querytool', [
       // This function will cancel the running query.
       _cancel_query: function() {
         var self = this;
-
-        $('#btn-cancel-query').prop('disabled', true);
         $.ajax({
           url: url_for('sqleditor.cancel_transaction', {
             'trans_id': self.transId,
           }),
           method: 'POST',
           contentType: 'application/json',
-          success: function(res) {
-            if (res.data.status) {
-              self.disable_tool_buttons(false);
-            } else {
-              self.disable_tool_buttons(false);
-              alertify.alert(gettext('Cancel Query Error'), res.data.result);
-            }
-            is_query_running = false;
-            setTimeout(() => { self.gridView.query_tool_obj.focus(); }, 200);
-          },
-          error: function(e) {
-            self.disable_tool_buttons(false);
+        })
+        .done(function(res) {
+          if (!res.data.status) {
+            alertify.alert(gettext('Cancel Query Error'), res.data.result);
+          }
+          self.disable_tool_buttons(false);
+          is_query_running = false;
+          setTimeout(() => { self.gridView.query_tool_obj.focus(); }, 200);
+        })
+        .fail(function(e) {
+          self.disable_tool_buttons(false);
 
-            let msg = httpErrorHandler.handleQueryToolAjaxError(
-              pgAdmin, self, e, '_cancel_query', [], false
-            );
-            alertify.alert(gettext('Cancel Query Error'), msg);
-          },
+          let msg = httpErrorHandler.handleQueryToolAjaxError(
+            pgAdmin, self, e, '_cancel_query', [], false
+          );
+          alertify.alert(gettext('Cancel Query Error'), msg);
         });
       },
 
@@ -3529,6 +3498,15 @@ define('tools.querytool', [
           filename: filename,
         });
         link.attr('src', url);
+      },
+
+      call_cache_preferences: function() {
+        let browser = window.opener ?
+              window.opener.pgAdmin.Browser : window.top.pgAdmin.Browser;
+        browser.cache_preferences('sqleditor');
+
+        /* This will make sure to get latest updates only and not older events */
+        pgBrowser.preference_version(pgBrowser.generate_preference_version());
       },
 
       _auto_rollback: function() {
@@ -3550,17 +3528,19 @@ define('tools.querytool', [
           method: 'POST',
           contentType: 'application/json',
           data: JSON.stringify(auto_rollback),
-          success: function(res) {
-            if (!res.data.status)
-              alertify.alert(gettext('Auto Rollback Error'), res.data.result);
-          },
-          error: function(e) {
+        })
+        .done(function(res) {
+          if (!res.data.status)
+            alertify.alert(gettext('Auto Rollback Error'), res.data.result);
+          else
+            self.call_cache_preferences();
+        })
+        .fail(function(e) {
 
-            let msg = httpErrorHandler.handleQueryToolAjaxError(
-              pgAdmin, self, e, '_auto_rollback', [], true
-            );
-            alertify.alert(gettext('Auto Rollback Error'), msg);
-          },
+          let msg = httpErrorHandler.handleQueryToolAjaxError(
+            pgAdmin, self, e, '_auto_rollback', [], true
+          );
+          alertify.alert(gettext('Auto Rollback Error'), msg);
         });
       },
 
@@ -3583,172 +3563,124 @@ define('tools.querytool', [
           method: 'POST',
           contentType: 'application/json',
           data: JSON.stringify(auto_commit),
-          success: function(res) {
-            if (!res.data.status)
-              alertify.alert(gettext('Auto Commit Error'), res.data.result);
-          },
-          error: function(e) {
-            let msg = httpErrorHandler.handleQueryToolAjaxError(
-              pgAdmin, self, e, '_auto_commit', [], true
+        })
+        .done(function(res) {
+          if (!res.data.status)
+            alertify.alert(gettext('Auto Commit Error'), res.data.result);
+          else
+            self.call_cache_preferences();
+        })
+        .fail(function(e) {
+          let msg = httpErrorHandler.handleQueryToolAjaxError(
+            pgAdmin, self, e, '_auto_commit', [], true
+          );
+          alertify.alert(gettext('Auto Commit Error'), msg);
+        });
+
+      },
+
+      explainPreferenceUpdate:  function(subItem, data, caller) {
+        let self = this;
+        $.ajax({
+          url: url_for('sqleditor.query_tool_preferences', {
+            'trans_id': self.transId,
+          }),
+          method: 'PUT',
+          contentType: 'application/json',
+          data: JSON.stringify(data),
+        })
+        .done(function(res) {
+          if (res.success == undefined || !res.success) {
+            alertify.alert(gettext('Explain options error'),
+              gettext('Error occurred while setting %(subItem)s option in explain.',
+                      {subItem : subItem})
             );
-            alertify.alert(gettext('Auto Commit Error'), msg);
-          },
+          }
+          else
+            self.call_cache_preferences();
+        })
+        .fail(function(e) {
+          let msg = httpErrorHandler.handleQueryToolAjaxError(
+            pgAdmin, self, e, caller, [], true
+          );
+          alertify.alert(gettext('Explain options error'), msg);
         });
       },
 
       // This function will toggle "verbose" option in explain
       _explain_verbose: function() {
         var self = this;
+        let explain_verbose = false;
         if ($('.explain-verbose').hasClass('visibility-hidden') === true) {
           $('.explain-verbose').removeClass('visibility-hidden');
-          self.explain_verbose = true;
+          explain_verbose = true;
         } else {
           $('.explain-verbose').addClass('visibility-hidden');
-          self.explain_verbose = false;
+          explain_verbose = false;
         }
 
-        // Set this option in preferences
-        var data = {
-          'explain_verbose': self.explain_verbose,
-        };
-
-        $.ajax({
-          url: url_for('sqleditor.query_tool_preferences', {
-            'trans_id': self.transId,
-          }),
-          method: 'PUT',
-          contentType: 'application/json',
-          data: JSON.stringify(data),
-          success: function(res) {
-            if (res.success == undefined || !res.success) {
-              alertify.alert(gettext('Explain options error'),
-                gettext('Error occurred while setting verbose option in explain.')
-              );
-            }
-          },
-          error: function(e) {
-            let msg = httpErrorHandler.handleQueryToolAjaxError(
-              pgAdmin, self, e, '_explain_verbose', [], true
-            );
-            alertify.alert(gettext('Explain options error'), msg);
-          },
-        });
+        self.explainPreferenceUpdate(
+          'verbose', {
+            'explain_verbose': explain_verbose,
+          }, '_explain_verbose'
+        );
       },
 
       // This function will toggle "costs" option in explain
       _explain_costs: function() {
         var self = this;
+        let explain_costs = false;
         if ($('.explain-costs').hasClass('visibility-hidden') === true) {
           $('.explain-costs').removeClass('visibility-hidden');
-          self.explain_costs = true;
+          explain_costs = true;
         } else {
           $('.explain-costs').addClass('visibility-hidden');
-          self.explain_costs = false;
+          explain_costs = false;
         }
 
-        // Set this option in preferences
-        var data = {
-          'explain_costs': self.explain_costs,
-        };
-
-        $.ajax({
-          url: url_for('sqleditor.query_tool_preferences', {
-            'trans_id': self.transId,
-          }),
-          method: 'PUT',
-          contentType: 'application/json',
-          data: JSON.stringify(data),
-          success: function(res) {
-            if (res.success == undefined || !res.success) {
-              alertify.alert(gettext('Explain options error'),
-                gettext('Error occurred while setting costs option in explain.')
-              );
-            }
-          },
-          error: function(e) {
-            let msg = httpErrorHandler.handleQueryToolAjaxError(
-              pgAdmin, self, e, '_explain_costs', [], true
-            );
-            alertify.alert(gettext('Explain options error'), msg);
-          },
-        });
+        self.explainPreferenceUpdate(
+          'costs', {
+            'explain_costs': explain_costs,
+          }, '_explain_costs'
+        );
       },
 
       // This function will toggle "buffers" option in explain
       _explain_buffers: function() {
         var self = this;
+        let explain_buffers = false;
         if ($('.explain-buffers').hasClass('visibility-hidden') === true) {
           $('.explain-buffers').removeClass('visibility-hidden');
-          self.explain_buffers = true;
+          explain_buffers = true;
         } else {
           $('.explain-buffers').addClass('visibility-hidden');
-          self.explain_buffers = false;
+          explain_buffers = false;
         }
 
-        // Set this option in preferences
-        var data = {
-          'explain_buffers': self.explain_buffers,
-        };
-
-        $.ajax({
-          url: url_for('sqleditor.query_tool_preferences', {
-            'trans_id': self.transId,
-          }),
-          method: 'PUT',
-          contentType: 'application/json',
-          data: JSON.stringify(data),
-          success: function(res) {
-            if (res.success == undefined || !res.success) {
-              alertify.alert(gettext('Explain options error'),
-                gettext('Error occurred while setting buffers option in explain.')
-              );
-            }
-          },
-          error: function(e) {
-            let msg = httpErrorHandler.handleQueryToolAjaxError(
-              pgAdmin, self, e, '_explain_buffers', [], true
-            );
-            alertify.alert(gettext('Explain options error'), msg);
-          },
-        });
+        self.explainPreferenceUpdate(
+          'buffers', {
+            'explain_buffers': explain_buffers,
+          }, '_explain_buffers'
+        );
       },
 
       // This function will toggle "timing" option in explain
       _explain_timing: function() {
         var self = this;
+        let explain_timing = false;
         if ($('.explain-timing').hasClass('visibility-hidden') === true) {
           $('.explain-timing').removeClass('visibility-hidden');
-          self.explain_timing = true;
+          explain_timing = true;
         } else {
           $('.explain-timing').addClass('visibility-hidden');
-          self.explain_timing = false;
+          explain_timing = false;
         }
-        // Set this option in preferences
-        var data = {
-          'explain_timing': self.explain_timing,
-        };
 
-        $.ajax({
-          url: url_for('sqleditor.query_tool_preferences', {
-            'trans_id': self.transId,
-          }),
-          method: 'PUT',
-          contentType: 'application/json',
-          data: JSON.stringify(data),
-          success: function(res) {
-            if (res.success == undefined || !res.success) {
-              alertify.alert(gettext('Explain options error'),
-                gettext('Error occurred while setting timing option in explain.')
-              );
-            }
-          },
-          error: function(e) {
-            let msg = httpErrorHandler.handleQueryToolAjaxError(
-              pgAdmin, self, e, '_explain_timing', [], true
-            );
-            alertify.alert(gettext('Explain options error'), msg);
-          },
-        });
+        self.explainPreferenceUpdate(
+          'timing', {
+            'explain_timing': explain_timing,
+          }, '_explain_timing'
+        );
       },
 
       /*
@@ -3777,85 +3709,6 @@ define('tools.querytool', [
         is_query_running = value;
       },
 
-      /*
-       * This function get explain options and auto rollback/auto commit
-       * values from preferences
-       */
-      get_preferences: function() {
-        var self = this,
-          explain_verbose = false,
-          explain_costs = false,
-          explain_buffers = false,
-          explain_timing = false,
-          auto_commit = true,
-          auto_rollback = false,
-          updateUI = function() {
-            // Set Auto-commit and auto-rollback on query editor
-            if (auto_commit &&
-              $('.auto-commit').hasClass('visibility-hidden') === true)
-              $('.auto-commit').removeClass('visibility-hidden');
-            else {
-              $('.auto-commit').addClass('visibility-hidden');
-            }
-            if (auto_rollback &&
-              $('.auto-rollback').hasClass('visibility-hidden') === true)
-              $('.auto-rollback').removeClass('visibility-hidden');
-            else {
-              $('.auto-rollback').addClass('visibility-hidden');
-            }
-
-            // Set explain options on query editor
-            if (explain_verbose &&
-              $('.explain-verbose').hasClass('visibility-hidden') === true)
-              $('.explain-verbose').removeClass('visibility-hidden');
-            else {
-              $('.explain-verbose').addClass('visibility-hidden');
-            }
-            if (explain_costs &&
-              $('.explain-costs').hasClass('visibility-hidden') === true)
-              $('.explain-costs').removeClass('visibility-hidden');
-            else {
-              $('.explain-costs').addClass('visibility-hidden');
-            }
-            if (explain_buffers &&
-              $('.explain-buffers').hasClass('visibility-hidden') === true)
-              $('.explain-buffers').removeClass('visibility-hidden');
-            else {
-              $('.explain-buffers').addClass('visibility-hidden');
-            }
-            if (explain_timing &&
-              $('.explain-timing').hasClass('visibility-hidden') === true)
-              $('.explain-timing').removeClass('visibility-hidden');
-            else {
-              $('.explain-timing').addClass('visibility-hidden');
-            }
-          };
-
-        $.ajax({
-          url: url_for('sqleditor.query_tool_preferences', {
-            'trans_id': self.transId,
-          }),
-          method: 'GET',
-          success: function(res) {
-            if (res.data) {
-              explain_verbose = res.data.explain_verbose;
-              explain_costs = res.data.explain_costs;
-              explain_buffers = res.data.explain_buffers;
-              explain_timing = res.data.explain_timing;
-              auto_commit = res.data.auto_commit;
-              auto_rollback = res.data.auto_rollback;
-              updateUI();
-            }
-          },
-          error: function(e) {
-            let msg = httpErrorHandler.handleQueryToolAjaxError(
-              pgAdmin, self, e, 'get_preferences', [], true
-            );
-            updateUI();
-            alertify.alert(gettext('Get Preferences error'), msg);
-          },
-        });
-      },
       close: function() {
         var self = this;
 
