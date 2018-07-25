@@ -77,9 +77,9 @@ let GeometryViewerDialog = {
               lmap.setView(bounds.getCenter(), 5);
             }
           }
-          else{
+          else {
             // empty geometry
-            lmap.setView([0,0],0);
+            lmap.setView([0, 0], 0);
           }
         },
 
@@ -105,7 +105,7 @@ let GeometryViewerDialog = {
           erd.listenTo(div, function () {
             setTimeout(function () {
               lmap.invalidateSize();
-            }, 100);
+            }, 200);
           });
           Alertify.pgDialogBuild.apply(this);
         },
@@ -114,7 +114,6 @@ let GeometryViewerDialog = {
           this.elements.dialog.style.width = '80%';
           this.elements.dialog.style.height = '60%';
         },
-
       };
     });
 
