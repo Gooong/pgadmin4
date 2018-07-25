@@ -44,8 +44,8 @@ let GeometryViewerDialog = {
           });
 
           try {
-            geometry.addData(geometry.toJSON());
-          }catch (e) {
+            geomLayer.addData(geometry.toGeoJSON());
+          } catch (e) {
             // Invalid LatLng object: (NaN, NaN)
             lmap.setView([0, 0], 0);
             return;
@@ -111,6 +111,8 @@ let GeometryViewerDialog = {
             }, 200);
           });
           Alertify.pgDialogBuild.apply(this);
+          this.elements.dialog.style.width = '80%';
+          this.elements.dialog.style.height = '60%';
         },
 
         prepare: function () {
