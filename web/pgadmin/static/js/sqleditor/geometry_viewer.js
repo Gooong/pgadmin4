@@ -16,13 +16,11 @@ import elementResizeDetectorMaker from 'element-resize-detector';
 import L from 'leaflet';
 
 // fix the icon url issue according to https://github.com/Leaflet/Leaflet/issues/4849
-import marker from 'leaflet/dist/images/marker-icon.png';
-import marker2x from 'leaflet/dist/images/marker-icon-2x.png';
-import markerShadow from 'leaflet/dist/images/marker-shadow.png';
-import layer from 'leaflet/dist/images/layers.png';
-import layer2x from 'leaflet/dist/images/layers-2x.png';
-
-marker, marker2x, markerShadow, layer, layer2x;
+import 'leaflet/dist/images/marker-icon.png';
+import 'leaflet/dist/images/marker-icon-2x.png';
+import 'leaflet/dist/images/marker-shadow.png';
+import 'leaflet/dist/images/layers.png';
+import 'leaflet/dist/images/layers-2x.png';
 
 
 let GeometryViewerDialog = {
@@ -38,7 +36,6 @@ let GeometryViewerDialog = {
       let lmap;
 
       return {
-
         main: function (geometry) {
           //reset map
           geomLayer.clearLayers();
@@ -46,9 +43,19 @@ let GeometryViewerDialog = {
             lmap.removeLayer(layer);
           });
 
-          geomLayer.addData(geometry.toGeoJSON());
-          let bounds = geomLayer.getBounds();
-          if (bounds.isValid()) {
+          try {
+            geometry.addData(geometry.toJSON());
+          }catch (e) {
+            // Invalid LatLng object: (NaN, NaN)
+            lmap.setView([0, 0], 0);
+            return;
+          }
+
+          if (geometry.toWkt().endsWith('EMPTY')) {
+            // empty geometry
+            lmap.setView([0, 0], 0);
+          } else {
+            let bounds = geomLayer.getBounds();
             bounds = bounds.pad(0.1);
             let maxLength = Math.max(bounds.getNorth() - bounds.getSouth(),
               bounds.getEast() - bounds.getWest());
@@ -76,10 +83,6 @@ let GeometryViewerDialog = {
             else {
               lmap.setView(bounds.getCenter(), 5);
             }
-          }
-          else {
-            // empty geometry
-            lmap.setView([0, 0], 0);
           }
         },
 

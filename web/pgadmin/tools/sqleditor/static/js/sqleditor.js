@@ -117,8 +117,6 @@ define('tools.querytool', [
       // Indentation options
       'click #btn-indent-code': 'on_indent_code',
       'click #btn-unindent-code': 'on_unindent_code',
-
-      //'click .btn-show-geometry': 'on_show_geometry',
     },
 
     reflectPreferences: function() {
@@ -769,13 +767,6 @@ define('tools.querytool', [
 
       var dataView = self.dataView = new Slick.Data.DataView(),
         grid = self.grid = new Slick.Grid($data_grid, dataView, grid_columns, grid_options);
-      grid.onClick.subscribe(function (e, args) {
-        if ($(e.target).hasClass('btn-view-ewkb-enabled') || $(e.target).parent().hasClass('btn-view-ewkb-enabled')) {
-          //render geometry viewer panel
-          var value = dataView.getItem(args.row)[grid.getColumns()[args.cell].field];
-          GeometryViewerDialog.dialog(value);
-        }
-      });
 
       // Add-on function which allow us to identify the faulty row after insert/update
       // and apply css accordingly
@@ -841,6 +832,15 @@ define('tools.querytool', [
         editor_data.selection.onSelectedRangesChanged.subscribe(
           setStagedRows.bind(editor_data));
       }
+
+      // listen for 'view geometry' button click event in datagrid
+      grid.onClick.subscribe(function (e, args) {
+        if ($(e.target).hasClass('btn-view-ewkb-enabled') || $(e.target).parent().hasClass('btn-view-ewkb-enabled')) {
+          var value = dataView.getItem(args.row)[grid.getColumns()[args.cell].field];
+          //show geometry viewer dialog
+          GeometryViewerDialog.dialog(value);
+        }
+      });
 
       grid.onColumnsResized.subscribe(function() {
         var columns = this.getColumns();
