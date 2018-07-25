@@ -63,15 +63,13 @@ let GeometryViewerDialog = {
               lmap.options.crs = L.CRS.EPSG3857;
               lmap.setMinZoom(0);
               osmLayer.addTo(lmap);
-            }
-            else {
+            } else {
               lmap.options.crs = L.CRS.Simple;
               if (maxLength >= 180) {
                 // calculate the min zoom level to enable the map to fit the whole geometry.
                 let minZoom = Math.floor(Math.log2(360 / maxLength)) - 2;
                 lmap.setMinZoom(minZoom);
-              }
-              else {
+              } else {
                 lmap.setMinZoom(0);
               }
             }
@@ -79,8 +77,7 @@ let GeometryViewerDialog = {
 
             if (maxLength > 0) {
               lmap.fitBounds(bounds);
-            }
-            else {
+            } else {
               lmap.setView(bounds.getCenter(), 5);
             }
           }
@@ -132,8 +129,7 @@ let GeometryViewerDialog = {
 
     if (geometry.hasZ) {
       Alertify.alert(gettext('Geometry Viewer Error'), gettext('Can not render 3d geometry'));
-    }
-    else {
+    } else {
       Alertify.mapDialog(geometry);
     }
   },
