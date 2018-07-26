@@ -257,8 +257,13 @@ class FunctionView(PGChildNodeView, DataTypeReader):
                 req = request.args or request.form
 
             if 'fnid' not in kwargs:
+                req_args = self.required_args
+                # We need to remove 'prosrc' from the required arguments list
+                # if language is 'c'.
+                if req['lanname'] == 'c' and 'prosrc' in req_args:
+                    req_args.remove('prosrc')
 
-                for arg in self.required_args:
+                for arg in req_args:
                     if (arg not in req or req[arg] == '') or \
                         (arg == 'probin' and req['lanname'] == 'c' and
                          (arg not in req or req[arg] == '')):
@@ -1153,12 +1158,14 @@ class FunctionView(PGChildNodeView, DataTypeReader):
                 old_data['pronamespace']
             )
 
-            if 'provolatile' in old_data:
+            if 'provolatile' in old_data and \
+                    old_data['provolatile'] is not None:
                 old_data['provolatile'] = vol_dict[old_data['provolatile']]
 
-            if 'proparallel' in old_data:
-                old_data['proparallel'] = parallel_dict[
-                    old_data['proparallel']]
+            if 'proparallel' in old_data and \
+                    old_data['proparallel'] is not None:
+                old_data['proparallel'] = \
+                    parallel_dict[old_data['proparallel']]
 
             # If any of the below argument is changed,
             # then CREATE OR REPLACE SQL statement should be called
@@ -1354,6 +1361,17 @@ class FunctionView(PGChildNodeView, DataTypeReader):
         resp_data.update(parse_variables_from_db([
             {"setconfig": resp_data['proconfig']}]))
 
+        # Reset Volatile, Cost and Parallel parameter for Procedures
+        # if language is not 'edbspl' and database server version is
+        # greater than 10.
+        if self.manager.sversion >= 110000 \
+            and ('prokind' in resp_data and resp_data['prokind'] == 'p') \
+                and ('lanname' in resp_data and
+                     resp_data['lanname'] != 'edbspl'):
+            resp_data['procost'] = None
+            resp_data['provolatile'] = None
+            resp_data['proparallel'] = None
+
         return resp_data
 
     def _get_schema(self, scid):
@@ -1502,7 +1520,10 @@ class FunctionView(PGChildNodeView, DataTypeReader):
             name = name.replace(arg, formatted_arg)
 
         name = name.replace(')', '\n)')
-        sql = "EXEC {0}".format(name)
+        if self.manager.server_type == 'pg':
+            sql = "CALL {0}".format(name)
+        else:
+            sql = "EXEC {0}".format(name)
 
         return ajax_response(response=sql)
 
@@ -1592,10 +1613,11 @@ class ProcedureModule(SchemaChildModule):
         """
         super(ProcedureModule, self).__init__(*args, **kwargs)
 
-        self.min_ver = 90100
+        self.min_ver = 110000
         self.max_ver = None
+        self.min_ppasver = 90100
         self.min_gpdbver = 1000000000
-        self.server_type = ['ppas']
+        self.server_type = ['pg', 'ppas']
 
     def get_nodes(self, gid, sid, did, scid):
         """

@@ -8,6 +8,7 @@
 //////////////////////////////////////////////////////////////////////////
 
 import $ from 'jquery';
+import gettext from 'sources/gettext';
 
 const PERIOD_KEY = 190,
   FWD_SLASH_KEY = 191,
@@ -49,6 +50,52 @@ function isCtrlAltBoth(event) {
   return event.ctrlKey && event.altKey && !event.shiftKey;
 }
 
+/* Returns the key of shortcut */
+function shortcut_key(shortcut) {
+  let key = '';
+  if(shortcut['key'] && shortcut['key']['char']) {
+    key = shortcut['key']['char'].toUpperCase();
+  }
+  return key;
+}
+
+/* Converts shortcut object to title representation
+ * Shortcut object is browser.get_preference().value
+ */
+function shortcut_title(title, shortcut) {
+  let text_representation = '';
+
+  if (typeof shortcut === 'undefined' || shortcut === null) {
+    return text_representation;
+  }
+  if(shortcut['alt']) {
+    text_representation = gettext('Alt') + '+';
+  }
+  if(shortcut['shift']) {
+    text_representation += gettext('Shift') + '+';
+  }
+  if(shortcut['control']) {
+    text_representation += gettext('Ctrl') + '+';
+  }
+  text_representation += shortcut_key(shortcut);
+
+  return gettext('%(title)s (%(text_representation)s)',{
+    'title': title,
+    'text_representation': text_representation,
+  });
+}
+
+/* Returns the key char of shortcut
+ * shortcut object is browser.get_preference().value
+ */
+function shortcut_accesskey_title(title, shortcut) {
+  return gettext('%(title)s (accesskey + %(key)s)',{
+    'title': title,
+    'key': shortcut_key(shortcut),
+  });
+}
+
+
 function _stopEventPropagation(event) {
   event.cancelBubble = true;
   event.preventDefault();
@@ -70,13 +117,10 @@ function validateShortcutKeys(user_defined_shortcut, event) {
 }
 
 /* Debugger: Keyboard Shortcuts handling */
-function keyboardShortcutsDebugger($el, event, user_defined_shortcuts) {
+function keyboardShortcutsDebugger($el, event, preferences) {
   let panel_id, panel_content, $input;
-  let edit_grid_keys = user_defined_shortcuts.edit_grid_keys,
-    next_panel_keys = user_defined_shortcuts.next_panel_keys,
-    previous_panel_keys = user_defined_shortcuts.previous_panel_keys;
 
-  if(this.validateShortcutKeys(edit_grid_keys, event)) {
+  if(this.validateShortcutKeys(preferences.edit_grid_values, event)) {
     this._stopEventPropagation(event);
     panel_content = $el.find(
       'div.wcPanelTabContent:not(".wcPanelTabContentHidden")'
@@ -86,10 +130,10 @@ function keyboardShortcutsDebugger($el, event, user_defined_shortcuts) {
       if($input.length)
         $input.trigger('click');
     }
-  } else if(this.validateShortcutKeys(next_panel_keys, event)) {
+  } else if(this.validateShortcutKeys(preferences.move_next, event)) {
     this._stopEventPropagation(event);
     panel_id = this.getInnerPanel($el, 'right');
-  } else if(this.validateShortcutKeys(previous_panel_keys, event)) {
+  } else if(this.validateShortcutKeys(preferences.move_previous, event)) {
     this._stopEventPropagation(event);
     panel_id = this.getInnerPanel($el, 'left');
   }
@@ -124,18 +168,19 @@ function getInnerPanel($el, direction) {
 
 /* Query tool: Keyboard Shortcuts handling */
 function keyboardShortcutsQueryTool(
-  sqlEditorController, keyboardShortcutConfig, queryToolActions, event
+  sqlEditorController, queryToolActions, event
 ) {
   if (sqlEditorController.isQueryRunning()) {
     return;
   }
   let keyCode = event.which || event.keyCode, panel_id;
-  let executeKeys = keyboardShortcutConfig['execute'];
-  let explainKeys = keyboardShortcutConfig['explain'];
-  let explainAnalyzeKeys = keyboardShortcutConfig['explain_analyze'];
-  let downloadCsvKeys = keyboardShortcutConfig['download_csv'];
-  let nextPanelKeys = keyboardShortcutConfig['move_next'];
-  let previousPanelKeys = keyboardShortcutConfig['move_previous'];
+  let executeKeys = sqlEditorController.preferences.execute_query;
+  let explainKeys = sqlEditorController.preferences.explain_query;
+  let explainAnalyzeKeys = sqlEditorController.preferences.explain_analyze_query;
+  let downloadCsvKeys = sqlEditorController.preferences.download_csv;
+  let nextPanelKeys = sqlEditorController.preferences.move_next;
+  let previousPanelKeys = sqlEditorController.preferences.move_previous;
+  let toggleCaseKeys = sqlEditorController.preferences.toggle_case;
 
   if (this.validateShortcutKeys(executeKeys, event)) {
     this._stopEventPropagation(event);
@@ -149,6 +194,9 @@ function keyboardShortcutsQueryTool(
   } else if (this.validateShortcutKeys(downloadCsvKeys, event)) {
     this._stopEventPropagation(event);
     queryToolActions.download(sqlEditorController);
+  } else if (this.validateShortcutKeys(toggleCaseKeys, event)) {
+    this._stopEventPropagation(event);
+    queryToolActions.toggleCaseOfSelectedText(sqlEditorController);
   } else if ((
      (this.isMac() && event.metaKey) ||
      (!this.isMac() && event.ctrlKey)
@@ -196,7 +244,7 @@ function keyboardShortcutsQueryTool(
           isDivider = false;
         }
       }
-      currLi.find('a:first').focus();
+      currLi.find('a:first').trigger('focus');
     }
   } else if(keyCode === LEFT_KEY || keyCode === RIGHT_KEY) {
     /*Apply only for dropdown*/
@@ -218,7 +266,7 @@ function keyboardShortcutsQueryTool(
           currLi = currLiMenu.closest('.dropdown-submenu');
         }
       }
-      currLi.find('a:first').focus();
+      currLi.find('a:first').trigger('focus');
     }
   }
 
@@ -241,4 +289,7 @@ module.exports = {
   isAltShiftBoth: isAltShiftBoth,
   isCtrlShiftBoth: isCtrlShiftBoth,
   isCtrlAltBoth: isCtrlAltBoth,
+  shortcut_key : shortcut_key,
+  shortcut_title : shortcut_title,
+  shortcut_accesskey_title : shortcut_accesskey_title,
 };

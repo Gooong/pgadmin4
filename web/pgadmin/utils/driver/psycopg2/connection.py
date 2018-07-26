@@ -50,7 +50,6 @@ else:
 
 _ = gettext
 
-
 # Register global type caster which will be applicable to all connections.
 register_global_typecasters()
 
@@ -144,6 +143,10 @@ class Connection(BaseConnection):
     * get_notifies()
       - This function will returns list of notifies received from database
         server.
+
+    * pq_encrypt_password_conn()
+      - This function will return the encrypted password for database server
+      - greater than or equal to 10.
     """
 
     def __init__(self, manager, conn_id, db, auto_reconnect=True, async=0,
@@ -225,10 +228,10 @@ class Connection(BaseConnection):
         encpass = kwargs['password'] if 'password' in kwargs else None
         passfile = kwargs['passfile'] if 'passfile' in kwargs else None
         tunnel_password = kwargs['tunnel_password'] if 'tunnel_password' in \
-                                                       kwargs else None
+                                                       kwargs else ''
 
         # Check SSH Tunnel needs to be created
-        if manager.use_ssh_tunnel == 1 and tunnel_password is not None:
+        if manager.use_ssh_tunnel == 1 and not manager.tunnel_created:
             status, error = manager.create_ssh_tunnel(tunnel_password)
             if not status:
                 return False, error
@@ -307,7 +310,8 @@ class Connection(BaseConnection):
                 sslrootcert=get_complete_file_path(manager.sslrootcert),
                 sslcrl=get_complete_file_path(manager.sslcrl),
                 sslcompression=True if manager.sslcompression else False,
-                service=manager.service
+                service=manager.service,
+                connect_timeout=manager.connect_timeout
             )
 
             # If connection is asynchronous then we will have to wait
@@ -397,10 +401,29 @@ class Connection(BaseConnection):
         if self.use_binary_placeholder:
             register_binary_typecasters(self.conn)
 
-        status = _execute(cur, "SET DateStyle=ISO;"
-                               "SET client_min_messages=notice;"
-                               "SET bytea_output=escape;"
-                               "SET client_encoding='UNICODE';")
+        if self.conn.encoding in ('SQL_ASCII', 'SQLASCII',
+                                  'MULE_INTERNAL', 'MULEINTERNAL'):
+            status = _execute(cur, "SET DateStyle=ISO;"
+                                   "SET client_min_messages=notice;"
+                                   "SET bytea_output=escape;"
+                                   "SET client_encoding='{0}';"
+                              .format(self.conn.encoding))
+            self.python_encoding = 'raw_unicode_escape'
+        else:
+            status = _execute(cur, "SET DateStyle=ISO;"
+                                   "SET client_min_messages=notice;"
+                                   "SET bytea_output=escape;"
+                                   "SET client_encoding='UNICODE';")
+            self.python_encoding = 'utf-8'
+
+        # Replace the python encoding for original name and renamed encodings
+        # psycopg2 removes the underscore in conn.encoding
+        # Setting the encodings dict value will only help for select statements
+        # because for parameterized DML, param values are converted based on
+        # python encoding of pyscopg2s internal encodings dict.
+        for key, val in encodings.items():
+            if key.replace('_', '') == self.conn.encoding:
+                encodings[key] = self.python_encoding
 
         if status is not None:
             self.conn.close()
@@ -598,6 +621,22 @@ WHERE
 
         return True, cur
 
+    def escape_params_sqlascii(self, params):
+        # The data is unescaped using string_typecasters when selected
+        # We need to esacpe the data so that it does not fail when
+        # it is encoded with python ascii
+        # unicode_escape helps in escaping and unescaping
+        if self.conn:
+            if self.conn.encoding in ('SQL_ASCII', 'SQLASCII',
+                                      'MULE_INTERNAL', 'MULEINTERNAL')\
+               and params is not None and type(params) == dict:
+                    params = dict(
+                        (key, val.encode('unicode_escape')
+                         .decode('raw_unicode_escape'))
+                        for key, val in params.items()
+                    )
+        return params
+
     def __internal_blocking_execute(self, cur, query, params):
         """
         This function executes the query using cursor's execute function,
@@ -617,6 +656,7 @@ WHERE
         else:
             query = query.encode('utf-8')
 
+        params = self.escape_params_sqlascii(params)
         cur.execute(query, params)
         if self.async == 1:
             self._wait(cur.connection)
@@ -734,7 +774,7 @@ WHERE
 
             header = []
             json_columns = []
-            conn_encoding = cur.connection.encoding
+            conn_encoding = encodings[cur.connection.encoding]
 
             for c in cur.ordered_description():
                 # This is to handle the case in which column name is non-ascii
@@ -879,6 +919,9 @@ WHERE
                 query = query.encode('utf-8')
         else:
             query = query.encode('utf-8')
+
+        # Convert the params based on python_encoding
+        params = self.escape_params_sqlascii(params)
 
         self.__async_cursor = None
         status, cur = self.__cursor()
@@ -1234,7 +1277,8 @@ WHERE
                 sslrootcert=get_complete_file_path(manager.sslrootcert),
                 sslcrl=get_complete_file_path(manager.sslcrl),
                 sslcompression=True if manager.sslcompression else False,
-                service=manager.service
+                service=manager.service,
+                connect_timeout=manager.connect_timeout
             )
 
         except psycopg2.Error as e:
@@ -1519,7 +1563,8 @@ Failed to reset the connection to the server due to following error:
                     sslcrl=get_complete_file_path(self.manager.sslcrl),
                     sslcompression=True if self.manager.sslcompression
                     else False,
-                    service=self.manager.service
+                    service=self.manager.service,
+                    connect_timeout=self.manager.connect_timeout
                 )
 
                 # Get the cursor and run the query
@@ -1773,3 +1818,38 @@ Failed to reset the connection to the server due to following error:
                          } for notify in self.__notifies
                         ]
         return notifies
+
+    def pq_encrypt_password_conn(self, password, user):
+        """
+        This function will return the encrypted password for database server
+        greater than or equal to 10
+        :param password: password to be encrypted
+        :param user: user of the database server
+        :return:
+        """
+        enc_password = None
+        if psycopg2.__libpq_version__ >= 100000 and \
+                hasattr(psycopg2.extensions, 'encrypt_password'):
+            if self.connected():
+                status, enc_algorithm = \
+                    self.execute_scalar("SHOW password_encryption")
+                if status:
+                    enc_password = psycopg2.extensions.encrypt_password(
+                        password=password, user=user, scope=self.conn,
+                        algorithm=enc_algorithm
+                    )
+        elif psycopg2.__libpq_version__ < 100000:
+            current_app.logger.warning(
+                u"To encrypt passwords the required libpq version is "
+                u"greater than or equal to 100000. Current libpq version "
+                u"is {curr_ver}".format(
+                    curr_ver=psycopg2.__libpq_version__
+                )
+            )
+        elif not hasattr(psycopg2.extensions, 'encrypt_password'):
+            current_app.logger.warning(
+                u"The psycopg2.extensions module does not have the"
+                u"'encrypt_password' method."
+            )
+
+        return enc_password

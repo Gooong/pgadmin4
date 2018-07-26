@@ -32,8 +32,14 @@ let queryResultClass =
     onChange: PropTypes.func.isRequired,
   });
 
+let sqlEditorPrefObj =
+  PropTypes.shape({
+    sql_font_size: PropTypes.string.isRequired,
+  });
+
 export default {
   historyDetail,
   historyCollectionClass,
   queryResultClass,
+  sqlEditorPrefObj,
 };

@@ -1,8 +1,8 @@
 .. _index_dialog:
 
-****************
-The Index Dialog
-****************
+*********************
+`Index Dialog`:index:
+*********************
 
 Use the *Index* dialog to create an index on a specified table or materialized view.
 
@@ -54,6 +54,8 @@ Use the context-sensitive fields in the *Columns* panel to specify which column(
     * Select *Last* to specify nulls sort after non-nulls (the default).
 
 * Use the drop-down listbox in the *Collation* field to select a collation to use for the index.
+
+Use *Include columns* field to specify columns for *INCLUDE* clause of the index. This option is available in Postgres 11 and later.
 
 Click the *SQL* tab to continue.
 

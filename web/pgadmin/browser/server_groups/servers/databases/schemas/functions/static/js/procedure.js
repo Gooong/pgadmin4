@@ -2,9 +2,9 @@
 define('pgadmin.node.procedure', [
   'sources/gettext', 'sources/url_for', 'jquery', 'underscore',
   'underscore.string', 'sources/pgadmin', 'pgadmin.browser', 'alertify',
-  'pgadmin.node.function', 'pgadmin.browser.collection',
-  'pgadmin.browser.server.privilege',
-], function(gettext, url_for, $, _, S, pgAdmin, pgBrowser, alertify, Function) {
+  'pgadmin.node.function', 'pgadmin.node.schema.dir/child',
+  'pgadmin.browser.collection', 'pgadmin.browser.server.privilege',
+], function(gettext, url_for, $, _, S, pgAdmin, pgBrowser, alertify, Function, schemaChild) {
 
   if (!pgBrowser.Nodes['coll-procedure']) {
     pgAdmin.Browser.Nodes['coll-procedure'] =
@@ -17,11 +17,9 @@ define('pgadmin.node.procedure', [
       });
   }
 
-  var pgSchemaNode = pgBrowser.Nodes['schema'];
-
   // Inherit Functions Node
   if (!pgBrowser.Nodes['procedure']) {
-    pgAdmin.Browser.Nodes['procedure'] = pgBrowser.Node.extend({
+    pgAdmin.Browser.Nodes['procedure'] = schemaChild.SchemaChildNode.extend({
       type: 'procedure',
       sqlAlterHelp: 'sql-alterprocedure.html',
       sqlCreateHelp: 'sql-createprocedure.html',
@@ -32,7 +30,6 @@ define('pgadmin.node.procedure', [
       hasDepends: true,
       hasStatistics: true,
       hasScriptTypes: ['create', 'exec'],
-      parent_type: ['schema', 'catalog'],
       Init: function() {
         /* Avoid mulitple registration of menus */
         if (this.proc_initialized)
@@ -62,8 +59,6 @@ define('pgadmin.node.procedure', [
         },
         ]);
       },
-      canDrop: pgSchemaNode.canChildDrop,
-      canDropCascade: false,
       canCreateProc: function(itemData, item) {
         var node_hierarchy = this.getTreeNodeHierarchy.apply(this, [item]);
 
@@ -71,10 +66,13 @@ define('pgadmin.node.procedure', [
         if ('catalog' in node_hierarchy)
           return false;
 
-        // Procedures supported only in PPAS
+        // Procedures supported only in PPAS and PG >= 11
         return (
-          'server' in node_hierarchy &&
-            node_hierarchy['server'].server_type == 'ppas'
+          'server' in node_hierarchy && (
+          node_hierarchy['server'].server_type == 'ppas' ||
+            (node_hierarchy['server'].server_type == 'pg' &&
+             node_hierarchy['server'].version >= 110000)
+          )
         );
       },
       model: Function.model.extend({
@@ -103,20 +101,49 @@ define('pgadmin.node.procedure', [
             return true;
           }
           switch(this.name){
-          case 'provolatility':
+          case 'provolatile':
           case 'proisstrict':
-          case 'prosecdef':
           case 'procost':
           case 'proleakproof':
+            if(this.node_info.server.version < 90500 ||
+              this.node_info.server.server_type != 'ppas' ||
+              m.get('lanname') != 'edbspl') {
+
+              setTimeout(function() {
+                m.set('provolatile', undefined);
+                m.set('proisstrict', undefined);
+                m.set('procost', undefined);
+                m.set('proleakproof', undefined);
+              }, 10);
+              return true;
+            }
+            else{
+              return false;
+            }
+
           case 'variables':
+          case 'prosecdef':
             return this.node_info.server.version < 90500;
           case 'prorows':
             var server = this.node_info.server;
             return !(server.version >= 90500 && m.get('proretset') == true);
           case 'funcowner':
-          case 'lanname':
           case 'proargs':
             return true;
+          case 'proparallel':
+            if (this.node_info.server.version < 90600 ||
+              this.node_info.server.server_type != 'ppas' ||
+              m.get('lanname') != 'edbspl') {
+              setTimeout(function() {
+                m.set('proparallel', undefined);
+              }, 10);
+              return true;
+            }
+            else{
+              return false;
+            }
+          case 'lanname':
+            return this.node_info.server.version < 110000;
           default:
             return false;
           }
@@ -142,11 +169,24 @@ define('pgadmin.node.procedure', [
             errmsg = errmsg || err['lanname'];
           }
 
-          if (_.isUndefined(this.get('prosrc')) || String(this.get('prosrc')).replace(/^\s+|\s+$/g, '') == '') {
-            err['prosrc'] = gettext('Code cannot be empty.');
-            errmsg = errmsg || err['prosrc'];
-          }
+          if (String(this.get('lanname')) == 'c') {
+            if (_.isUndefined(this.get('probin')) || String(this.get('probin'))
+              .replace(/^\s+|\s+$/g, '') == '') {
+              err['probin'] = gettext('Object File cannot be empty.');
+              errmsg = errmsg || err['probin'];
+            }
 
+            if (_.isUndefined(this.get('prosrc_c')) || String(this.get('prosrc_c')).replace(/^\s+|\s+$/g, '') == '') {
+              err['prosrc_c'] = gettext('Link Symbol cannot be empty.');
+              errmsg = errmsg || err['prosrc_c'];
+            }
+          }
+          else {
+            if (_.isUndefined(this.get('prosrc')) || String(this.get('prosrc')).replace(/^\s+|\s+$/g, '') == '') {
+              err['prosrc'] = gettext('Code cannot be empty.');
+              errmsg = errmsg || err['prosrc'];
+            }
+          }
 
           if (seclabels) {
             var secLabelsErr;

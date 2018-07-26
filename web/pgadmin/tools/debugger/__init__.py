@@ -293,33 +293,6 @@ def update_session_function_transaction(trans_id, data):
     session['functionData'] = function_data
 
 
-def get_shortcuts_for_accesskey():
-    """
-    This function will fetch and return accesskey shortcuts for debugger
-    toolbar buttons
-
-    Returns:
-        Dict of shortcut keys
-    """
-    # Fetch debugger preferences
-    dp = Preferences.module('debugger')
-    btn_start = dp.preference('btn_start').get()
-    btn_stop = dp.preference('btn_stop').get()
-    btn_step_into = dp.preference('btn_step_into').get()
-    btn_step_over = dp.preference('btn_step_over').get()
-    btn_toggle_breakpoint = dp.preference('btn_toggle_breakpoint').get()
-    btn_clear_breakpoints = dp.preference('btn_clear_breakpoints').get()
-
-    return {
-        'start': btn_start.get('key').get('char'),
-        'stop': btn_stop.get('key').get('char'),
-        'step_into': btn_step_into.get('key').get('char'),
-        'step_over': btn_step_over.get('key').get('char'),
-        'toggle_breakpoint': btn_toggle_breakpoint.get('key').get('char'),
-        'clear_breakpoints': btn_clear_breakpoints.get('key').get('char')
-    }
-
-
 @blueprint.route(
     '/init/<node_type>/<int:sid>/<int:did>/<int:scid>/<int:fid>',
     methods=['GET'], endpoint='init_for_function'
@@ -365,8 +338,11 @@ def init_function(node_type, sid, did, scid, fid, trid=None):
 
     # Check server type is ppas or not
     ppas_server = False
+    is_proc_supported = False
     if server_type == 'ppas':
         ppas_server = True
+    else:
+        is_proc_supported = True if manager.version >= 110000 else False
 
     # Set the template path required to read the sql files
     template_path = 'debugger/sql'
@@ -395,7 +371,10 @@ def init_function(node_type, sid, did, scid, fid, trid=None):
     sql = render_template(
         "/".join([template_path, 'get_function_debug_info.sql']),
         is_ppas_database=ppas_server,
-        hasFeatureFunctionDefaults=True, fid=fid
+        hasFeatureFunctionDefaults=True,
+        fid=fid,
+        is_proc_supported=is_proc_supported
+
     )
     status, r_set = conn.execute_dict(sql)
     if not status:
@@ -509,6 +488,7 @@ def init_function(node_type, sid, did, scid, fid, trid=None):
         'oid': fid,
         'name': r_set['rows'][0]['name'],
         'is_func': r_set['rows'][0]['isfunc'],
+        'is_ppas_database': ppas_server,
         'is_callable': False,
         'schema': r_set['rows'][0]['schemaname'],
         'language': r_set['rows'][0]['lanname'],
@@ -582,7 +562,6 @@ def direct_new(trans_id):
         is_linux=is_linux_platform,
         client_platform=user_agent.platform,
         stylesheets=[url_for('debugger.static', filename='css/debugger.css')],
-        accesskey=get_shortcuts_for_accesskey()
     )
 
 
@@ -663,6 +642,22 @@ def initialize_target(debug_type, sid, did, scid, func_id, tri_id=None):
                 )
                 current_app.logger.debug(msg)
                 return internal_server_error(msg)
+
+    # Check debugger extension version for EPAS 11 and above.
+    # If it is 1.0 then return error to upgrade the extension.
+    if manager.server_type == 'ppas' and manager.sversion >= 110000:
+        status, ext_version = conn.execute_scalar(
+            "SELECT installed_version FROM pg_catalog.pg_available_extensions "
+            "WHERE name = 'pldbgapi'"
+        )
+
+        if not status:
+            return internal_server_error(errormsg=ext_version)
+        else:
+            if float(ext_version) < 1.1:
+                return internal_server_error(
+                    errormsg=gettext("Please upgrade the pldbgapi extension "
+                                     "to 1.1 or above and try again."))
 
     # Set the template path required to read the sql files
     template_path = 'debugger/sql'
@@ -765,6 +760,7 @@ def initialize_target(debug_type, sid, did, scid, func_id, tri_id=None):
         'oid': func_data['oid'],
         'name': func_data['name'],
         'is_func': func_data['is_func'],
+        'is_ppas_database': func_data['is_ppas_database'],
         'is_callable': func_data['is_callable'],
         'schema': func_data['schema'],
         'language': func_data['language'],
@@ -787,12 +783,8 @@ def initialize_target(debug_type, sid, did, scid, func_id, tri_id=None):
     # is initialized
     del session['funcData']
 
-    pref = Preferences.module('debugger')
-    new_browser_tab = pref.preference('debugger_new_browser_tab').get()
-
     return make_json_response(data={'status': status,
-                                    'debuggerTransId': trans_id,
-                                    'newBrowserTab': new_browser_tab})
+                                    'debuggerTransId': trans_id})
 
 
 @blueprint.route(
@@ -1062,7 +1054,8 @@ def start_debugger_listener(trans_id):
                     func_name=func_name,
                     is_func=session_function_data['is_func'],
                     ret_type=session_function_data['return_type'],
-                    data=session_function_data['args_value']
+                    data=session_function_data['args_value'],
+                    is_ppas_database=session_function_data['is_ppas_database']
                 )
 
             status, result = conn.execute_async(str_query)
@@ -1215,6 +1208,8 @@ def execute_debugger_query(trans_id, query_type):
                 update_session_debugger_transaction(trans_id, session_obj)
 
             status, result = conn.execute_async(sql)
+            if not status:
+                internal_server_error(errormsg=result)
             return make_json_response(
                 data={'status': status, 'result': result}
             )
@@ -1944,10 +1939,21 @@ def poll_end_execution_result(trans_id):
         if statusmsg and statusmsg == 'SELECT 1':
             statusmsg = ''
         status, result = conn.poll()
+        if not status:
+            status = 'ERROR'
+            return make_json_response(
+                info=gettext("Execution completed with an error."),
+                data={
+                    'status': status,
+                    'status_message': result
+                }
+            )
+
         session_function_data = session['functionData'][str(trans_id)]
         if status == ASYNC_OK and \
-                not session_function_data['is_func'] and \
-                session_function_data['language'] == 'edbspl':
+            not session_function_data['is_func'] and\
+            (session_function_data['language'] == 'edbspl' or
+                session_function_data['language'] == 'plpgsql'):
             status = 'Success'
             additional_msgs = conn.messages()
             if len(additional_msgs) > 0:
@@ -1970,7 +1976,7 @@ def poll_end_execution_result(trans_id):
             if 'ERROR' in result:
                 status = 'ERROR'
                 return make_json_response(
-                    info=gettext("Execution completed with error"),
+                    info=gettext("Execution completed with an error."),
                     data={
                         'status': status,
                         'status_message': result
@@ -2058,7 +2064,9 @@ def poll_result(trans_id):
 
     if conn.connected():
         status, result = conn.poll()
-        if status == ASYNC_OK and result is not None:
+        if not status:
+            status = 'ERROR'
+        elif status == ASYNC_OK and result is not None:
             status = 'Success'
             columns, result = convert_data_to_dict(conn, result)
         else:

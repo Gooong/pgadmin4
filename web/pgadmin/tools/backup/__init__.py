@@ -109,8 +109,7 @@ class BackupMessage(IProcessDesc):
             else:
                 self.cmd += cmdArg(arg)
 
-    @property
-    def message(self):
+    def get_server_details(self):
         # Fetch the server details like hostname, port, roles etc
         s = Server.query.filter_by(
             id=self.sid, user_id=current_user.id
@@ -122,6 +121,12 @@ class BackupMessage(IProcessDesc):
 
         host = manager.local_bind_host if manager.use_ssh_tunnel else s.host
         port = manager.local_bind_port if manager.use_ssh_tunnel else s.port
+
+        return s.name, host, port
+
+    @property
+    def message(self):
+        name, host, port = self.get_server_details()
 
         if self.backup_type == BACKUP.OBJECT:
             return _(
@@ -129,7 +134,7 @@ class BackupMessage(IProcessDesc):
                 "from database '{1}'..."
             ).format(
                 "{0} ({1}:{2})".format(
-                    s.name, host, port
+                    name, host, port
                 ),
                 self.database
             )
@@ -137,13 +142,13 @@ class BackupMessage(IProcessDesc):
             return _("Backing up the global objects on "
                      "the server '{0}'...").format(
                 "{0} ({1}:{2})".format(
-                    s.name, host, port
+                    name, host, port
                 )
             )
         elif self.backup_type == BACKUP.SERVER:
             return _("Backing up the server '{0}'...").format(
                 "{0} ({1}:{2})".format(
-                    s.name, host, port
+                    name, host, port
                 )
             )
         else:
@@ -151,17 +156,7 @@ class BackupMessage(IProcessDesc):
             return "Unknown Backup"
 
     def details(self, cmd, args):
-        # Fetch the server details like hostname, port, roles etc
-        s = Server.query.filter_by(
-            id=self.sid, user_id=current_user.id
-        ).first()
-
-        from pgadmin.utils.driver import get_driver
-        driver = get_driver(PG_DEFAULT_DRIVER)
-        manager = driver.connection_manager(self.sid)
-
-        host = manager.local_bind_host if manager.use_ssh_tunnel else s.host
-        port = manager.local_bind_port if manager.use_ssh_tunnel else s.port
+        name, host, port = self.get_server_details()
 
         res = '<div class="h5">'
 
@@ -171,7 +166,7 @@ class BackupMessage(IProcessDesc):
                 "from database '{1}'..."
             ).format(
                 "{0} ({1}:{2})".format(
-                    html.safe_str(s.name),
+                    html.safe_str(name),
                     html.safe_str(host),
                     html.safe_str(port),
                 ),
@@ -181,7 +176,7 @@ class BackupMessage(IProcessDesc):
             res += _("Backing up the global objects on "
                      "the server '{0}'...").format(
                 "{0} ({1}:{2})".format(
-                    html.safe_str(s.name),
+                    html.safe_str(name),
                     html.safe_str(host),
                     html.safe_str(port)
                 )
@@ -189,7 +184,7 @@ class BackupMessage(IProcessDesc):
         elif self.backup_type == BACKUP.SERVER:
             res += _("Backing up the server '{0}'...").format(
                 "{0} ({1}:{2})".format(
-                    html.safe_str(s.name),
+                    html.safe_str(name),
                     html.safe_str(host),
                     html.safe_str(port)
                 )
@@ -226,10 +221,11 @@ def script():
     )
 
 
-def filename_with_file_manager_path(_file):
+def filename_with_file_manager_path(_file, create_file=True):
     """
     Args:
         file: File name returned from client file manager
+        create_file: Set flag to False when file creation doesn't required
 
     Returns:
         Filename to use for backup with full path taken from preference
@@ -242,11 +238,22 @@ def filename_with_file_manager_path(_file):
     elif not os.path.isabs(_file):
         _file = os.path.join(document_dir(), _file)
 
-    # Touch the file to get the short path of the file on windows.
-    with open(_file, 'a'):
-        pass
+    if create_file:
+        # Touch the file to get the short path of the file on windows.
+        with open(_file, 'a'):
+            pass
 
-    return fs_short_path(_file)
+    short_path = fs_short_path(_file)
+
+    # fs_short_path() function may return empty path on Windows
+    # if directory doesn't exists. In that case we strip the last path
+    # component and get the short path.
+    if os.name == 'nt' and short_path == '':
+        base_name = os.path.basename(_file)
+        dir_name = os.path.dirname(_file)
+        short_path = fs_short_path(dir_name) + '\\' + base_name
+
+    return short_path
 
 
 @blueprint.route(
@@ -339,7 +346,15 @@ def create_backup_job(sid):
             cmd=utility, args=args
         )
         manager.export_password_env(p.id)
-        p.set_env_variables(server)
+        # Check for connection timeout and if it is greater than 0 then
+        # set the environment variable PGCONNECT_TIMEOUT.
+        if manager.connect_timeout > 0:
+            env = dict()
+            env['PGCONNECT_TIMEOUT'] = str(manager.connect_timeout)
+            p.set_env_variables(server, env=env)
+        else:
+            p.set_env_variables(server)
+
         p.start()
         jid = p.id
     except Exception as e:
@@ -382,7 +397,10 @@ def create_backup_objects_job(sid):
         data.pop("ratio")
 
     try:
-        backup_file = filename_with_file_manager_path(data['file'])
+        if data['format'] == 'directory':
+            backup_file = filename_with_file_manager_path(data['file'], False)
+        else:
+            backup_file = filename_with_file_manager_path(data['file'])
     except Exception as e:
         return bad_request(errormsg=str(e))
 
@@ -504,7 +522,15 @@ def create_backup_objects_job(sid):
             cmd=utility, args=args
         )
         manager.export_password_env(p.id)
-        p.set_env_variables(server)
+        # Check for connection timeout and if it is greater than 0 then
+        # set the environment variable PGCONNECT_TIMEOUT.
+        if manager.connect_timeout > 0:
+            env = dict()
+            env['PGCONNECT_TIMEOUT'] = str(manager.connect_timeout)
+            p.set_env_variables(server, env=env)
+        else:
+            p.set_env_variables(server)
+
         p.start()
         jid = p.id
     except Exception as e:

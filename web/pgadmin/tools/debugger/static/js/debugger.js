@@ -2,10 +2,11 @@ define([
   'sources/gettext', 'sources/url_for', 'jquery', 'underscore',
   'underscore.string', 'alertify', 'sources/pgadmin', 'pgadmin.browser',
   'backbone', 'pgadmin.backgrid', 'codemirror', 'pgadmin.backform',
-  'pgadmin.tools.debugger.ui', 'wcdocker', 'pgadmin.browser.frame',
+  'pgadmin.tools.debugger.ui', 'pgadmin.tools.debugger.utils',
+  'wcdocker', 'pgadmin.browser.frame',
 ], function(
   gettext, url_for, $, _, S, Alertify, pgAdmin, pgBrowser, Backbone, Backgrid,
-  CodeMirror, Backform, get_function_arguments
+  CodeMirror, Backform, get_function_arguments, debuggerUtils
 ) {
   var pgTools = pgAdmin.Tools = pgAdmin.Tools || {},
     wcDocker = window.wcDocker;
@@ -183,6 +184,18 @@ define([
       });
 
       this.frame.load(pgBrowser.docker);
+
+      let self = this;
+      let cacheIntervalId = setInterval(function() {
+        try {
+          self.preferences = window.top.pgAdmin.Browser;
+          clearInterval(cacheIntervalId);
+        }
+        catch(err) {
+          clearInterval(cacheIntervalId);
+          throw err;
+        }
+      });
     },
     // It will check weather the function is actually debuggable or not with pre-required condition.
     can_debug: function(itemData, item, data) {
@@ -290,19 +303,19 @@ define([
       $.ajax({
         url: _url,
         cache: false,
-        success: function() {
-          self.start_global_debugger();
-        },
-        error: function(xhr) {
-          try {
-            var err = JSON.parse(xhr.responseText);
-            if (err.success == 0) {
-              Alertify.alert(gettext('Debugger Error'), err.errormsg);
-            }
-          } catch (e) {
-            console.warn(e.stack || e);
+      })
+      .done(function() {
+        self.start_global_debugger();
+      })
+      .fail(function(xhr) {
+        try {
+          var err = JSON.parse(xhr.responseText);
+          if (err.success == 0) {
+            Alertify.alert(gettext('Debugger Error'), err.errormsg);
           }
-        },
+        } catch (e) {
+          console.warn(e.stack || e);
+        }
       });
     },
 
@@ -312,7 +325,8 @@ define([
       var t = pgBrowser.tree,
         i = item || t.selected(),
         d = i && i.length == 1 ? t.itemData(i) : undefined,
-        node = d && pgBrowser.Nodes[d._type];
+        node = d && pgBrowser.Nodes[d._type],
+        self = this;
 
       if (!d)
         return;
@@ -337,7 +351,7 @@ define([
             'sid': treeInfo.server._id,
             'did': treeInfo.database._id,
             'scid': treeInfo.schema._id,
-            'func_id': treeInfo.procedure._id,
+            'func_id': debuggerUtils.getProcedureId(treeInfo),
           }
         );
       } else if (d._type == 'trigger_function') {
@@ -377,52 +391,52 @@ define([
       $.ajax({
         url: baseUrl,
         method: 'GET',
-        success: function(res) {
-          var url = url_for('debugger.direct', {
-            'trans_id': res.data.debuggerTransId,
-          });
+      })
+      .done(function(res) {
+        var url = url_for('debugger.direct', {
+          'trans_id': res.data.debuggerTransId,
+        });
 
-          if (res.data.newBrowserTab) {
-            window.open(url, '_blank');
-          } else {
-            pgBrowser.Events.once(
-              'pgadmin-browser:frame:urlloaded:frm_debugger',
-              function(frame) {
-                frame.openURL(url);
-              });
-
-            // Create the debugger panel as per the data received from user input dialog.
-            var dashboardPanel = pgBrowser.docker.findPanels(
-                'properties'
-              ),
-              panel = pgBrowser.docker.addPanel(
-                'frm_debugger', wcDocker.DOCK.STACKED, dashboardPanel[0]
-              );
-
-            panel.focus();
-
-            // Panel Closed event
-            panel.on(wcDocker.EVENT.CLOSED, function() {
-              var closeUrl = url_for('debugger.close', {
-                'trans_id': res.data.debuggerTransId,
-              });
-              $.ajax({
-                url: closeUrl,
-                method: 'DELETE',
-              });
+        if (self.preferences.debugger_new_browser_tab) {
+          window.open(url, '_blank');
+        } else {
+          pgBrowser.Events.once(
+            'pgadmin-browser:frame:urlloaded:frm_debugger',
+            function(frame) {
+              frame.openURL(url);
             });
+
+          // Create the debugger panel as per the data received from user input dialog.
+          var dashboardPanel = pgBrowser.docker.findPanels(
+              'properties'
+            ),
+            panel = pgBrowser.docker.addPanel(
+              'frm_debugger', wcDocker.DOCK.STACKED, dashboardPanel[0]
+            );
+
+          panel.focus();
+
+          // Panel Closed event
+          panel.on(wcDocker.EVENT.CLOSED, function() {
+            var closeUrl = url_for('debugger.close', {
+              'trans_id': res.data.debuggerTransId,
+            });
+            $.ajax({
+              url: closeUrl,
+              method: 'DELETE',
+            });
+          });
+        }
+      })
+      .fail(function(xhr) {
+        try {
+          var err = JSON.parse(xhr.responseText);
+          if (err.success == 0) {
+            Alertify.alert(gettext('Debugger Error'), err.errormsg);
           }
-        },
-        error: function(xhr) {
-          try {
-            var err = JSON.parse(xhr.responseText);
-            if (err.success == 0) {
-              Alertify.alert(gettext('Debugger Error'), err.errormsg);
-            }
-          } catch (e) {
-            console.warn(e.stack || e);
-          }
-        },
+        } catch (e) {
+          console.warn(e.stack || e);
+        }
       });
     },
 
@@ -434,7 +448,8 @@ define([
       var t = pgBrowser.tree,
         i = item || t.selected(),
         d = i && i.length == 1 ? t.itemData(i) : undefined,
-        node = d && pgBrowser.Nodes[d._type];
+        node = d && pgBrowser.Nodes[d._type],
+        self = this;
 
       if (!d)
         return;
@@ -445,107 +460,107 @@ define([
       $.ajax({
         url: _url,
         cache: false,
-        success: function(res) {
+      })
+      .done(function(res) {
 
-          // Open Alertify the dialog to take the input arguments from user if function having input arguments
-          if (res.data[0]['require_input']) {
-            get_function_arguments(res.data[0], 0);
+        // Open Alertify the dialog to take the input arguments from user if function having input arguments
+        if (res.data[0]['require_input']) {
+          get_function_arguments(res.data[0], 0);
+        } else {
+          // Initialize the target and create asynchronous connection and unique transaction ID
+          // If there is no arguments to the functions then we should not ask for for function arguments and
+          // Directly open the panel
+          var t = pgBrowser.tree,
+            i = t.selected(),
+            d = i && i.length == 1 ? t.itemData(i) : undefined,
+            node = d && pgBrowser.Nodes[d._type];
+
+          if (!d)
+            return;
+
+          var treeInfo = node.getTreeNodeHierarchy.apply(node, [i]),
+            baseUrl;
+
+          if (d._type == 'function') {
+            baseUrl = url_for(
+              'debugger.initialize_target_for_function', {
+                'debug_type': 'direct',
+                'sid': treeInfo.server._id,
+                'did': treeInfo.database._id,
+                'scid': treeInfo.schema._id,
+                'func_id': treeInfo.function._id,
+              }
+            );
           } else {
-            // Initialize the target and create asynchronous connection and unique transaction ID
-            // If there is no arguments to the functions then we should not ask for for function arguments and
-            // Directly open the panel
-            var t = pgBrowser.tree,
-              i = t.selected(),
-              d = i && i.length == 1 ? t.itemData(i) : undefined,
-              node = d && pgBrowser.Nodes[d._type];
+            baseUrl = url_for(
+              'debugger.initialize_target_for_function', {
+                'debug_type': 'direct',
+                'sid': treeInfo.server._id,
+                'did': treeInfo.database._id,
+                'scid': treeInfo.schema._id,
+                'func_id': debuggerUtils.getProcedureId(treeInfo),
+              }
+            );
+          }
 
-            if (!d)
-              return;
+          $.ajax({
+            url: baseUrl,
+            method: 'GET',
+          })
+          .done(function(res) {
 
-            var treeInfo = node.getTreeNodeHierarchy.apply(node, [i]),
-              baseUrl;
+            var url = url_for('debugger.direct', {
+              'trans_id': res.data.debuggerTransId,
+            });
 
-            if (d._type == 'function') {
-              baseUrl = url_for(
-                'debugger.initialize_target_for_function', {
-                  'debug_type': 'direct',
-                  'sid': treeInfo.server._id,
-                  'did': treeInfo.database._id,
-                  'scid': treeInfo.schema._id,
-                  'func_id': treeInfo.function._id,
-                }
-              );
+            if (self.preferences.debugger_new_browser_tab) {
+              window.open(url, '_blank');
             } else {
-              baseUrl = url_for(
-                'debugger.initialize_target_for_function', {
-                  'debug_type': 'direct',
-                  'sid': treeInfo.server._id,
-                  'did': treeInfo.database._id,
-                  'scid': treeInfo.schema._id,
-                  'func_id': treeInfo.procedure._id,
-                }
-              );
-            }
-
-            $.ajax({
-              url: baseUrl,
-              method: 'GET',
-              success: function(res) {
-
-                var url = url_for('debugger.direct', {
-                  'trans_id': res.data.debuggerTransId,
+              pgBrowser.Events.once(
+                'pgadmin-browser:frame:urlloaded:frm_debugger',
+                function(frame) {
+                  frame.openURL(url);
                 });
 
-                if (res.data.newBrowserTab) {
-                  window.open(url, '_blank');
-                } else {
-                  pgBrowser.Events.once(
-                    'pgadmin-browser:frame:urlloaded:frm_debugger',
-                    function(frame) {
-                      frame.openURL(url);
-                    });
-
-                  // Create the debugger panel as per the data received from user input dialog.
-                  var dashboardPanel = pgBrowser.docker.findPanels(
-                      'properties'
-                    ),
-                    panel = pgBrowser.docker.addPanel(
-                      'frm_debugger', wcDocker.DOCK.STACKED, dashboardPanel[0]
-                    );
-
-                  panel.focus();
-
-                  // Register Panel Closed event
-                  panel.on(wcDocker.EVENT.CLOSED, function() {
-                    var closeUrl = url_for('debugger.close', {
-                      'trans_id': res.data.debuggerTransId,
-                    });
-                    $.ajax({
-                      url: closeUrl,
-                      method: 'DELETE',
-                    });
-                  });
-                }
-              },
-              error: function(e) {
-                Alertify.alert(
-                  gettext('Debugger Target Initialization Error'),
-                  e.responseJSON.errormsg
+              // Create the debugger panel as per the data received from user input dialog.
+              var dashboardPanel = pgBrowser.docker.findPanels(
+                  'properties'
+                ),
+                panel = pgBrowser.docker.addPanel(
+                  'frm_debugger', wcDocker.DOCK.STACKED, dashboardPanel[0]
                 );
-              },
-            });
-          }
-        },
-        error: function(xhr) {
-          try {
-            var err = JSON.parse(xhr.responseText);
-            if (err.success == 0) {
-              Alertify.alert(gettext('Debugger Error'), err.errormsg);
+
+              panel.focus();
+
+              // Register Panel Closed event
+              panel.on(wcDocker.EVENT.CLOSED, function() {
+                var closeUrl = url_for('debugger.close', {
+                  'trans_id': res.data.debuggerTransId,
+                });
+                $.ajax({
+                  url: closeUrl,
+                  method: 'DELETE',
+                });
+              });
             }
-          } catch (e) {
-            console.warn(e.stack || e);
+          })
+          .fail(function(e) {
+            Alertify.alert(
+              gettext('Debugger Target Initialization Error'),
+              e.responseJSON.errormsg
+            );
+          });
+        }
+      })
+      .fail(function(xhr) {
+        try {
+          var err = JSON.parse(xhr.responseText);
+          if (err.success == 0) {
+            Alertify.alert(gettext('Debugger Error'), err.errormsg);
           }
-        },
+        } catch (e) {
+          console.warn(e.stack || e);
+        }
       });
     },
   };

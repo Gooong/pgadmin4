@@ -40,6 +40,7 @@ class ServerManager(object):
         self.local_bind_host = '127.0.0.1'
         self.local_bind_port = None
         self.tunnel_object = None
+        self.tunnel_created = False
 
         self.update(server)
 
@@ -74,6 +75,8 @@ class ServerManager(object):
         self.sslcrl = server.sslcrl
         self.sslcompression = True if server.sslcompression else False
         self.service = server.service
+        self.connect_timeout = \
+            server.connect_timeout if server.connect_timeout else 0
         if config.SUPPORT_SSH_TUNNEL:
             self.use_ssh_tunnel = server.use_ssh_tunnel
             self.tunnel_host = server.tunnel_host
@@ -376,27 +379,28 @@ WHERE db.oid = {0}""".format(did))
         if user is None:
             return False, gettext("Unauthorized request.")
 
-        try:
-            tunnel_password = decrypt(tunnel_password, user.password)
-            # Handling of non ascii password (Python2)
-            if hasattr(str, 'decode'):
-                tunnel_password = \
-                    tunnel_password.decode('utf-8').encode('utf-8')
-            # password is in bytes, for python3 we need it in string
-            elif isinstance(tunnel_password, bytes):
-                tunnel_password = tunnel_password.decode()
+        if tunnel_password is not None and tunnel_password != '':
+            try:
+                tunnel_password = decrypt(tunnel_password, user.password)
+                # Handling of non ascii password (Python2)
+                if hasattr(str, 'decode'):
+                    tunnel_password = \
+                        tunnel_password.decode('utf-8').encode('utf-8')
+                # password is in bytes, for python3 we need it in string
+                elif isinstance(tunnel_password, bytes):
+                    tunnel_password = tunnel_password.decode()
 
-        except Exception as e:
-            current_app.logger.exception(e)
-            return False, "Failed to decrypt the SSH tunnel " \
-                          "password.\nError: {0}".format(str(e))
+            except Exception as e:
+                current_app.logger.exception(e)
+                return False, "Failed to decrypt the SSH tunnel " \
+                              "password.\nError: {0}".format(str(e))
 
         try:
             # If authentication method is 1 then it uses identity file
             # and password
             if self.tunnel_authentication == 1:
                 self.tunnel_object = SSHTunnelForwarder(
-                    self.tunnel_host,
+                    (self.tunnel_host, int(self.tunnel_port)),
                     ssh_username=self.tunnel_username,
                     ssh_pkey=get_complete_file_path(self.tunnel_identity_file),
                     ssh_private_key_password=tunnel_password,
@@ -404,13 +408,14 @@ WHERE db.oid = {0}""".format(did))
                 )
             else:
                 self.tunnel_object = SSHTunnelForwarder(
-                    self.tunnel_host,
+                    (self.tunnel_host, int(self.tunnel_port)),
                     ssh_username=self.tunnel_username,
                     ssh_password=tunnel_password,
                     remote_bind_address=(self.host, self.port)
                 )
 
             self.tunnel_object.start()
+            self.tunnel_created = True
         except BaseSSHTunnelForwarderError as e:
             current_app.logger.exception(e)
             return False, "Failed to create the SSH tunnel." \
@@ -425,6 +430,7 @@ WHERE db.oid = {0}""".format(did))
         # Check SSH Tunnel is alive or not. if it is not then
         # raise the ConnectionLost exception.
         if self.tunnel_object is None or not self.tunnel_object.is_active:
+            self.tunnel_created = False
             raise SSHTunnelConnectionLost(self.tunnel_host)
 
     def stop_ssh_tunnel(self):
@@ -433,3 +439,4 @@ WHERE db.oid = {0}""".format(did))
             self.tunnel_object.stop()
             self.local_bind_port = None
             self.tunnel_object = None
+            self.tunnel_created = False

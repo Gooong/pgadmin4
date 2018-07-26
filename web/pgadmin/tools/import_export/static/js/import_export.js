@@ -146,19 +146,22 @@ Backform, commonUtils, supportedNodes
           res = [];
 
         _.each(rows, function(r) {
-          var l = (_.isFunction(node['node_label']) ?
-              (node['node_label']).apply(node, [r, self.model, self]) :
-              r.label),
-            image = (_.isFunction(node['node_image']) ?
-              (node['node_image']).apply(
-                node, [r, self.model, self]
-              ) :
-              (node['node_image'] || ('icon-' + node.type)));
-          res.push({
-            'value': r.label,
-            'image': image,
-            'label': l,
-          });
+          // System columns with id less than 0 should not be added.
+          if ('_id' in r && r._id > 0) {
+            var l = (_.isFunction(node['node_label']) ?
+                (node['node_label']).apply(node, [r, self.model, self]) :
+                r.label),
+              image = (_.isFunction(node['node_image']) ?
+                (node['node_image']).apply(
+                  node, [r, self.model, self]
+                ) :
+                (node['node_image'] || ('icon-' + node.type)));
+            res.push({
+              'value': r.label,
+              'image': image,
+              'label': l,
+            });
+          }
         });
 
         return res;
@@ -526,23 +529,23 @@ Backform, commonUtils, supportedNodes
                   data: {
                     'data': JSON.stringify(this.view.model.toJSON()),
                   },
-                  success: function(res) {
-                    if (res.success) {
-                      Alertify.success(gettext('Import/export job created.'), 5);
-                      pgBrowser.Events.trigger('pgadmin-bgprocess:created', self);
-                    }
-                  },
-                  error: function(xhr) {
-                    try {
-                      var err = JSON.parse(xhr.responseText);
-                      Alertify.alert(
-                        gettext('Import/export job failed.'),
-                        err.errormsg
-                      );
-                    } catch (e) {
-                      console.warn(e.stack || e);
-                    }
-                  },
+                })
+                .done(function(res) {
+                  if (res.success) {
+                    Alertify.success(gettext('Import/export job created.'), 5);
+                    pgBrowser.Events.trigger('pgadmin-bgprocess:created', self);
+                  }
+                })
+                .fail(function(xhr) {
+                  try {
+                    var err = JSON.parse(xhr.responseText);
+                    Alertify.alert(
+                      gettext('Import/export job failed.'),
+                      err.errormsg
+                    );
+                  } catch (e) {
+                    console.warn(e.stack || e);
+                  }
                 });
               }
             },

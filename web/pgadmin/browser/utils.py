@@ -51,7 +51,9 @@ class PGChildModule(object):
 
     def __init__(self, *args, **kwargs):
         self.min_ver = 0
-        self.max_ver = 1000000000
+        self.max_ver = 1100000000
+        self.min_ppasver = 0
+        self.max_ppasver = 1100000000
         self.server_type = None
         self.min_gpdbver = 80323
         self.max_gpdbver = 1000000000
@@ -72,6 +74,9 @@ class PGChildModule(object):
         if self.server_type is None or manager.server_type in self.server_type:
             min_server_version = self.min_ver
             max_server_version = self.max_ver
+            if manager.server_type == 'ppas':
+                min_server_version = self.min_ppasver
+                max_server_version = self.max_ppasver
             if manager.server_type == 'gpdb':
                 min_server_version = self.min_gpdbver
                 max_server_version = self.max_gpdbver
@@ -261,6 +266,7 @@ class NodeView(with_metaclass(MethodViewType, View)):
         commands = cls.generate_ops()
 
         for c in commands:
+            cmd = c['cmd'].replace('.', '-')
             if c['with_id']:
                 blueprint.add_url_rule(
                     '/{0}{1}'.format(
@@ -268,7 +274,7 @@ class NodeView(with_metaclass(MethodViewType, View)):
                     ),
                     view_func=cls.as_view(
                         '{0}{1}'.format(
-                            c['cmd'], '_id' if c['req'] else ''
+                            cmd, '_id' if c['req'] else ''
                         ),
                         cmd=c['cmd']
                     ),
@@ -278,7 +284,7 @@ class NodeView(with_metaclass(MethodViewType, View)):
                 blueprint.add_url_rule(
                     '/{0}'.format(c['cmd']),
                     view_func=cls.as_view(
-                        '{0}'.format(c['cmd']), cmd=c['cmd']
+                        cmd, cmd=c['cmd']
                     ),
                     methods=c['methods']
                 )
