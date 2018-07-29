@@ -12,7 +12,6 @@ import Alertify from 'pgadmin.alertifyjs';
 import {Geometry} from 'wkx';
 import {Buffer} from 'buffer';
 import $ from 'jquery';
-//import elementResizeDetectorMaker from 'element-resize-detector';
 import L from 'leaflet';
 
 // fix the icon url issue according to https://github.com/Leaflet/Leaflet/issues/4849
@@ -26,7 +25,12 @@ import 'leaflet/dist/images/layers-2x.png';
 let GeometryViewerDialog = {
   'render_geometry': RenderGeometry,
 
-  'render_all_geometries': RenderAllGeometries,
+  'render_all_geometries': function (e, args) {
+    let items = args.grid.getData().getItems();
+    let columns = args.grid.getColumns();
+    let columnIndex = columns.indexOf(args.column);
+    RenderAllGeometries(items, columns, columnIndex);
+  },
 
   'add_header_button': function (columnDefinition) {
     columnDefinition.header = {
@@ -44,15 +48,15 @@ let GeometryViewerDialog = {
 };
 
 
-function RenderAllGeometries(e, args) {
+function RenderAllGeometries(items, columns, columnIndex) {
   BuildGeometryViewerDialog();
 
-  let items = args.grid.getData().getItems();
-  let field = args.column.field;
+  let field = columns[columnIndex].field,
+    geometries3D = [],
+    geometries = [],
+    unsupportedItems = [],
+    geometryItemMap = new Map();
 
-  let geometries3D = [];
-  let geometries = [];
-  let unsupportedItems = [];
   _.each(items, function (item) {
     try {
       let value = item[field];
@@ -65,6 +69,7 @@ function RenderAllGeometries(e, args) {
           geometry.srid = 0;
         }
         geometries.push(geometry);
+        geometryItemMap.set(geometry, item);
       }
     } catch (e) {
       unsupportedItems.push(item);
@@ -77,18 +82,26 @@ function RenderAllGeometries(e, args) {
   let selectedPair = _.max(SRIDGeometriesPairs, function (pair) {
     return pair[1].length;
   });
-  let srid = selectedPair[0];
+  let selectedSRID = selectedPair[0];
+  let selectedGeometries = selectedPair[1];
   let geoJSONs = _.map(selectedPair[1], function (geometry) {
     return geometry.toGeoJSON();
   });
 
-  Alertify.mapDialog(geoJSONs, parseInt(srid));
+  let getPopupContent = function (geojson) {
+    let geometry = selectedGeometries[geoJSONs.indexOf(geojson)];
+    //alert(JSON.stringify(geometryItemMap.has(geometry)));
+    let item = geometryItemMap.get(geometry);
+    return item2Table(item, columns);
+  };
+
+  Alertify.mapDialog(geoJSONs, parseInt(selectedSRID), getPopupContent);
 }
 
-function RenderGeometry(dataView, columnDefinition, row) {
+function RenderGeometry(item, columns, columnIndex) {
   BuildGeometryViewerDialog();
 
-  let value = dataView.getItem(row)[columnDefinition.field];
+  let value = item[columns[columnIndex].field];
   let geometry;
   try {
     let buffer = new Buffer(value, 'hex');
@@ -100,7 +113,12 @@ function RenderGeometry(dataView, columnDefinition, row) {
   if (geometry.hasZ) {
     Alertify.alert(gettext('Geometry Viewer Error'), gettext('Can not render 3d geometry'));
   } else {
-    Alertify.mapDialog(geometry.toGeoJSON(), geometry.srid);
+    let geojson = geometry.toGeoJSON();
+    let getPopupContent = function () {
+      //alert(JSON.stringify(geojson == geojson));
+      return item2Table(item, columns);
+    };
+    Alertify.mapDialog(geojson, geometry.srid, getPopupContent);
   }
 }
 
@@ -111,13 +129,31 @@ function BuildGeometryViewerDialog() {
     let vectorLayer;
     let osmLayer;
     let lmap;
+    let popup;
 
     return {
-      main: function (geojson, SRID) {
+      main: function (geojson, SRID, getPopupContent) {
         //reset map
+        lmap.closePopup();
         vectorLayer.clearLayers();
+        vectorLayer.off('click');
         osmLayer.remove();
         divContainer.removeClass('ewkb-viewer-container-plain-background');
+
+        if (typeof getPopupContent === 'function') {
+          vectorLayer.on('click', function (e) {
+            let geometry;
+            let feature = e.propagatedFrom.feature;
+            if (feature.type === 'FeatureCollection') {
+              geometry = feature;
+            } else {
+              geometry = feature.geometry;
+            }
+            popup.setLatLng(e.latlng);
+            popup.setContent(getPopupContent(geometry));
+            popup.openOn(lmap);
+          });
+        }
 
         try {
           vectorLayer.addData(geojson);
@@ -132,7 +168,6 @@ function BuildGeometryViewerDialog() {
           lmap.setView([0, 0], 0);
           return;
         }
-
 
         bounds = bounds.pad(0.1);
         let maxLength = Math.max(bounds.getNorth() - bounds.getSouth(),
@@ -163,7 +198,9 @@ function BuildGeometryViewerDialog() {
       setup: function () {
         return {
           options: {
+            closableByDimmer: true,
             closable: true,
+            maximizable: false,
             frameless: true,
             padding: false,
             overflow: false,
@@ -174,35 +211,63 @@ function BuildGeometryViewerDialog() {
 
       build: function () {
         divContainer = $('<div class="ewkb-viewer-container"></div>');
+        this.elements.content.appendChild(divContainer.get(0));
         vectorLayer = L.geoJSON();
         osmLayer = L.tileLayer('http://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
           attribution: '<a target="_blank" href="https://www.openstreetmap.org/copyright">&copy; OpenStreetMap</a>',
         });
-        this.elements.content.appendChild(divContainer.get(0));
-        lmap = L.map(divContainer.get(0),{
+        lmap = L.map(divContainer.get(0), {
           preferCanvas: true,
         });
         vectorLayer.addTo(lmap);
         osmLayer.addTo(lmap);
+        popup = L.popup({
+          closeButton: false,
+          minWidth: 260,
+          maxWidth: 400,
+          maxHeight: 420,
+        });
 
-        // // add resize event listener to resize map
-        // let erd = elementResizeDetectorMaker();
-        // erd.listenTo(divContainer, function () {
-        //   setTimeout(function () {
-        //     lmap.invalidateSize();
-        //   }, 200);
-        // });
-        // Alertify.pgDialogBuild.apply(this);
-        // this.elements.dialog.style.width = '80%';
-        // this.elements.dialog.style.height = '60%';
+        Alertify.pgDialogBuild.apply(this);
+        this.set('onresized', function () {
+          setTimeout(function () {
+            lmap.invalidateSize();
+          }, 200);
+        });
+        this.elements.dialog.style.width = '80%';
+        this.elements.dialog.style.height = '70%';
       },
 
-      // prepare: function () {
-      //   this.elements.dialog.style.width = '80%';
-      //   this.elements.dialog.style.height = '60%';
-      // },
+      prepare: function () {
+        this.elements.dialog.style.width = '80%';
+        this.elements.dialog.style.height = '70%';
+      },
     };
   });
+}
+
+function item2Table(item, columns) {
+  let content = '<table class="table table-bordered table-striped view-geometry-property-table"><tbody>';
+  _.each(columns, function (columnDef) {
+    if (!_.isUndefined(columnDef.display_name)) {
+      content += '<tr><th>' + columnDef.display_name + '</th>' + '<td>';
+
+      let value = item[columnDef.field];
+      if (_.isUndefined(value) && columnDef.has_default_val) {
+        content += '[default]';
+      } else if (
+        (_.isUndefined(value) && columnDef.not_null) ||
+        (_.isUndefined(value) || value === null)
+      ) {
+        content += '[null]';
+      } else {
+        content += value;
+      }
+      content += '</td></tr>';
+    }
+  });
+  content += '</tbody></table>';
+  return content;
 }
 
 module.exports = GeometryViewerDialog;

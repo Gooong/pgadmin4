@@ -847,10 +847,10 @@ define('tools.querytool', [
       // listen for 'view geometry' button click event in datagrid
       grid.onClick.subscribe(function (e, args) {
         if ($(e.target).hasClass('btn-view-ewkb-enabled') || $(e.target).parent().hasClass('btn-view-ewkb-enabled')) {
-          //var value = dataView.getItem(args.row)[grid.getColumns()[args.cell].field];
-          //show geometry viewer dialog
-          let columnDefinition = grid.getColumns()[args.cell];
-          GeometryViewerDialog.render_geometry(dataView, columnDefinition, args.row);
+          var item = dataView.getItem(args.row);
+          var columns = grid.getColumns();
+          var columnIndex = args.cell;
+          GeometryViewerDialog.render_geometry(item, columns, columnIndex);
         }
       });
 
