@@ -141,7 +141,7 @@ import {Buffer} from 'buffer';
           _.escape(value);
       }
       else {
-        return '<button title="View Geometry" class="btn-xs btn-default btn-ewkb-viewer btn-view-ewkb-enabled">' +
+        return '<button title="View geometry" class="btn-xs btn-default btn-ewkb-viewer btn-view-ewkb-enabled">' +
           '<i class="fa fa-eye" aria-hidden="true"></i>' +
           '</button>' +
           _.escape(value);

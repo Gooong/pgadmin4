@@ -15,7 +15,7 @@ define('tools.querytool', [
   'sources/sqleditor/execute_query',
   'sources/sqleditor/query_tool_http_error_handler',
   'sources/sqleditor/filter_dialog',
-  'sources/sqleditor/geometry_viewer',
+  'sources/sqleditor/geometry_viewer_dialog',
   'sources/history/index.js',
   'sourcesjsx/history/query_history',
   'react', 'react-dom',
@@ -32,6 +32,7 @@ define('tools.querytool', [
   'backgrid.sizeable.columns',
   'slick.pgadmin.formatters',
   'slick.pgadmin.editors',
+  'sources/slickgrid/custom_header_buttons',
   'pgadmin.browser',
   'pgadmin.tools.user_management',
 ], function(
@@ -728,7 +729,7 @@ define('tools.querytool', [
         } else if (c.cell == 'binary') {
           // We do not support editing binary data in SQL editor and data grid.
           options['formatter'] = Slick.Formatters.Binary;
-        } else if (c.cell == 'geometry' || c.cell == 'geography' ){
+        } else if (c.cell == 'geometry' || c.cell == 'geography'){
           options['editor'] = is_editable ? Slick.Editors.pgText :
             Slick.Editors.ReadOnlypgText;
           // EWKB formatter for viewing geometry data.
@@ -745,6 +746,13 @@ define('tools.querytool', [
 
       var gridSelector = new GridSelector();
       grid_columns = self.grid_columns = gridSelector.getColumnDefinitions(grid_columns);
+
+      // add 'view' button in geometry and geography type column header
+      _.each(grid_columns, function (c) {
+        if(c.column_type_internal == 'geometry' || c.column_type_internal == 'geography'){
+          GeometryViewerDialog.add_header_button(c);
+        }
+      });
 
       if (rows_affected) {
         // calculate with for header row column.
@@ -808,6 +816,9 @@ define('tools.querytool', [
       grid.registerPlugin(new ActiveCellCapture());
       grid.setSelectionModel(new XCellSelectionModel());
       grid.registerPlugin(gridSelector);
+      var headerButtonsPlugin = new Slick.Plugins.HeaderButtons();
+      headerButtonsPlugin.onCommand.subscribe(GeometryViewerDialog.render_all_geometries);
+      grid.registerPlugin(headerButtonsPlugin);
 
       var editor_data = {
         keys: (_.isEmpty(self.handler.primary_keys) && self.handler.has_oids) ? self.handler.oids : self.handler.primary_keys,
@@ -836,9 +847,10 @@ define('tools.querytool', [
       // listen for 'view geometry' button click event in datagrid
       grid.onClick.subscribe(function (e, args) {
         if ($(e.target).hasClass('btn-view-ewkb-enabled') || $(e.target).parent().hasClass('btn-view-ewkb-enabled')) {
-          var value = dataView.getItem(args.row)[grid.getColumns()[args.cell].field];
+          //var value = dataView.getItem(args.row)[grid.getColumns()[args.cell].field];
           //show geometry viewer dialog
-          GeometryViewerDialog.dialog(value);
+          let columnDefinition = grid.getColumns()[args.cell];
+          GeometryViewerDialog.render_geometry(dataView, columnDefinition, args.row);
         }
       });
 
