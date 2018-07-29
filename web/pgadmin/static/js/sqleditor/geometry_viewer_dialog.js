@@ -15,11 +15,11 @@ import $ from 'jquery';
 import L from 'leaflet';
 
 // fix the icon url issue according to https://github.com/Leaflet/Leaflet/issues/4849
-import 'leaflet/dist/images/marker-icon.png';
-import 'leaflet/dist/images/marker-icon-2x.png';
-import 'leaflet/dist/images/marker-shadow.png';
-import 'leaflet/dist/images/layers.png';
-import 'leaflet/dist/images/layers-2x.png';
+// import 'leaflet/dist/images/marker-icon.png';
+// import 'leaflet/dist/images/marker-icon-2x.png';
+// import 'leaflet/dist/images/marker-shadow.png';
+// import 'leaflet/dist/images/layers.png';
+// import 'leaflet/dist/images/layers-2x.png';
 
 
 let GeometryViewerDialog = {
@@ -47,17 +47,20 @@ let GeometryViewerDialog = {
   },
 };
 
-
 function RenderAllGeometries(items, columns, columnIndex) {
   BuildGeometryViewerDialog();
-
+  const maxRenderByteLength = 5 * 1024 * 1024; //render geometry data up to 5MB
   let field = columns[columnIndex].field,
     geometries3D = [],
     geometries = [],
     unsupportedItems = [],
-    geometryItemMap = new Map();
+    geometryItemMap = new Map(),
+    mixedSRID = false,
+    geometryTotalByteLength = 0,
+    tooLargeDataSize = false;
 
-  _.each(items, function (item) {
+
+  _.every(items, function (item) {
     try {
       let value = item[field];
       let buffer = new Buffer(value, 'hex');
@@ -65,6 +68,11 @@ function RenderAllGeometries(items, columns, columnIndex) {
       if (geometry.hasZ) {
         geometries3D.push(geometry);
       } else {
+        geometryTotalByteLength += buffer.byteLength;
+        if (geometryTotalByteLength > maxRenderByteLength) {
+          tooLargeDataSize = true;
+          return false;
+        }
         if (!geometry.srid) {
           geometry.srid = 0;
         }
@@ -74,11 +82,15 @@ function RenderAllGeometries(items, columns, columnIndex) {
     } catch (e) {
       unsupportedItems.push(item);
     }
+    return true;
   });
 
   // group geometries by SRID
   let geometriesGroupBySRID = _.groupBy(geometries, 'srid');
   let SRIDGeometriesPairs = _.pairs(geometriesGroupBySRID);
+  if (SRIDGeometriesPairs.length > 1) {
+    mixedSRID = true;
+  }
   let selectedPair = _.max(SRIDGeometriesPairs, function (pair) {
     return pair[1].length;
   });
@@ -92,10 +104,20 @@ function RenderAllGeometries(items, columns, columnIndex) {
     let geometry = selectedGeometries[geoJSONs.indexOf(geojson)];
     //alert(JSON.stringify(geometryItemMap.has(geometry)));
     let item = geometryItemMap.get(geometry);
-    return item2Table(item, columns);
+    return itemToTable(item, columns);
   };
 
-  Alertify.mapDialog(geoJSONs, parseInt(selectedSRID), getPopupContent);
+  let infoContent = '';
+  if (tooLargeDataSize) {
+    infoContent += 'Too Large Data Size' +
+      '<i className="fa fa-question-circle" title="Due to performance limitations, this viewer only render 5MB geometry" aria-hidden="true"></i>';
+  }
+  if (mixedSRID) {
+    infoContent += 'Mixed SRID, Current SRID: ' + selectedSRID +
+      '<i className="fa fa-question-circle" title="There are geometries with different SRIDs in this column" aria-hidden="true"></i>';
+  }
+
+  Alertify.mapDialog(geoJSONs, parseInt(selectedSRID), getPopupContent, infoContent);
 }
 
 function RenderGeometry(item, columns, columnIndex) {
@@ -116,7 +138,7 @@ function RenderGeometry(item, columns, columnIndex) {
     let geojson = geometry.toGeoJSON();
     let getPopupContent = function () {
       //alert(JSON.stringify(geojson == geojson));
-      return item2Table(item, columns);
+      return itemToTable(item, columns);
     };
     Alertify.mapDialog(geojson, geometry.srid, getPopupContent);
   }
@@ -126,15 +148,20 @@ function BuildGeometryViewerDialog() {
   Alertify.mapDialog || Alertify.dialog('mapDialog', function () {
 
     let divContainer;
-    let vectorLayer;
-    let osmLayer;
-    let lmap;
-    let popup;
+    let vectorLayer, osmLayer, lmap, popup, infoControl;
+    let geojsonMarkerOptions = {
+      radius: 4,
+      weight: 2,
+    };
+    let geojsonStyle = {
+      weight: 2,
+    };
 
     return {
-      main: function (geojson, SRID, getPopupContent) {
+      main: function (geojson, SRID, getPopupContent, infoContent) {
         //reset map
         lmap.closePopup();
+        infoControl.remove();
         vectorLayer.clearLayers();
         vectorLayer.off('click');
         osmLayer.remove();
@@ -153,6 +180,12 @@ function BuildGeometryViewerDialog() {
             popup.setContent(getPopupContent(geometry));
             popup.openOn(lmap);
           });
+        }
+
+        if (!_.isUndefined(infoContent)) {
+          alert(infoContent);
+          infoControl.addTo(lmap);
+          infoControl.update(infoContent);
         }
 
         try {
@@ -198,8 +231,8 @@ function BuildGeometryViewerDialog() {
       setup: function () {
         return {
           options: {
-            closableByDimmer: true,
             closable: true,
+            closableByDimmer: true,
             maximizable: false,
             frameless: true,
             padding: false,
@@ -212,7 +245,12 @@ function BuildGeometryViewerDialog() {
       build: function () {
         divContainer = $('<div class="ewkb-viewer-container"></div>');
         this.elements.content.appendChild(divContainer.get(0));
-        vectorLayer = L.geoJSON();
+        vectorLayer = L.geoJSON([], {
+          style: geojsonStyle,
+          pointToLayer: function (feature, latlng) {
+            return L.circleMarker(latlng, geojsonMarkerOptions);
+          },
+        });
         osmLayer = L.tileLayer('http://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
           attribution: '<a target="_blank" href="https://www.openstreetmap.org/copyright">&copy; OpenStreetMap</a>',
         });
@@ -227,6 +265,21 @@ function BuildGeometryViewerDialog() {
           maxWidth: 400,
           maxHeight: 420,
         });
+        infoControl = L.control({
+          position: 'topright',
+          initialize: function () {
+
+          },
+        });
+        infoControl.onAdd = function () {
+          this._div = L.DomUtil.create('div', 'geometry-viewer-info-control');
+          return this._div;
+        };
+        infoControl.addTo(lmap);
+        infoControl.update = function (content) {
+          this._div.innerHTML = content;
+        };
+
 
         Alertify.pgDialogBuild.apply(this);
         this.set('onresized', function () {
@@ -235,18 +288,18 @@ function BuildGeometryViewerDialog() {
           }, 200);
         });
         this.elements.dialog.style.width = '80%';
-        this.elements.dialog.style.height = '70%';
+        this.elements.dialog.style.height = '60%';
       },
 
       prepare: function () {
         this.elements.dialog.style.width = '80%';
-        this.elements.dialog.style.height = '70%';
+        this.elements.dialog.style.height = '60%';
       },
     };
   });
 }
 
-function item2Table(item, columns) {
+function itemToTable(item, columns) {
   let content = '<table class="table table-bordered table-striped view-geometry-property-table"><tbody>';
   _.each(columns, function (columnDef) {
     if (!_.isUndefined(columnDef.display_name)) {
