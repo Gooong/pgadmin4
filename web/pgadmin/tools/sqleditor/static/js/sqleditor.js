@@ -15,7 +15,7 @@ define('tools.querytool', [
   'sources/sqleditor/execute_query',
   'sources/sqleditor/query_tool_http_error_handler',
   'sources/sqleditor/filter_dialog',
-  'sources/sqleditor/geometry_viewer_dialog',
+  'sources/sqleditor/geometry_viewer',
   'sources/history/index.js',
   'sourcesjsx/history/query_history',
   'react', 'react-dom',
@@ -38,8 +38,8 @@ define('tools.querytool', [
 ], function(
   babelPollyfill, gettext, url_for, $, _, S, alertify, pgAdmin, Backbone, codemirror,
   pgExplain, GridSelector, ActiveCellCapture, clipboard, copyData, RangeSelectionHelper, handleQueryOutputKeyboardEvent,
-  XCellSelectionModel, setStagedRows, SqlEditorUtils, ExecuteQuery, httpErrorHandler, FilterHandler, GeometryViewerDialog,
-  HistoryBundle, queryHistory, React, ReactDOM,
+  XCellSelectionModel, setStagedRows, SqlEditorUtils, ExecuteQuery, httpErrorHandler, FilterHandler,
+  GeometryViewer, HistoryBundle, queryHistory, React, ReactDOM,
   keyboardShortcuts, queryToolActions, queryToolNotifications, Datagrid,
   modifyAnimation, calculateQueryRunTime, callRenderAfterPoll, queryToolPref) {
   /* Return back, this has been called more than once */
@@ -581,7 +581,6 @@ define('tools.querytool', [
     },
 
     /* Regarding SlickGrid usage in render_grid function.
-
      SlickGrid Plugins:
      ------------------
      1) Slick.AutoTooltips
@@ -591,7 +590,6 @@ define('tools.querytool', [
      - This plugin is useful for selecting rows using checkbox
      3) RowSelectionModel
      - This plugin is needed by CheckboxSelectColumn plugin to select rows
-
      Grid Options:
      -------------
      1) editable
@@ -608,12 +606,10 @@ define('tools.querytool', [
      - This option allow us to enter in edit mode directly when user clicks on it
      otherwise user have to double click or manually press enter on cell to go
      in cell edit mode
-
      Handling of data:
      -----------------
      We are doing data handling manually,what user adds/updates/deletes etc
      we will use `data_store` object to store everything user does within grid data
-
      - updated:
      This will hold all the data which user updates in grid
      - added:
@@ -622,7 +618,6 @@ define('tools.querytool', [
      This will hold all the data which user copies/pastes/deletes in grid
      - deleted:
      This will hold all the data which user deletes in grid
-
      Events handling:
      ----------------
      1) onCellChange
@@ -750,7 +745,7 @@ define('tools.querytool', [
       // add 'view' button in geometry and geography type column header
       _.each(grid_columns, function (c) {
         if(c.column_type_internal == 'geometry' || c.column_type_internal == 'geography'){
-          GeometryViewerDialog.add_header_button(c);
+          GeometryViewer.add_header_button(c);
         }
       });
 
@@ -817,7 +812,12 @@ define('tools.querytool', [
       grid.setSelectionModel(new XCellSelectionModel());
       grid.registerPlugin(gridSelector);
       var headerButtonsPlugin = new Slick.Plugins.HeaderButtons();
-      headerButtonsPlugin.onCommand.subscribe(GeometryViewerDialog.render_all_geometries);
+      headerButtonsPlugin.onCommand.subscribe(function (e, args) {
+        let items = args.grid.getData().getItems();
+        let columns = args.grid.getColumns();
+        let columnIndex = columns.indexOf(args.column);
+        GeometryViewer.render_geometry(items, columns, columnIndex);
+      });
       grid.registerPlugin(headerButtonsPlugin);
 
       var editor_data = {
@@ -850,7 +850,7 @@ define('tools.querytool', [
           var item = dataView.getItem(args.row);
           var columns = grid.getColumns();
           var columnIndex = args.cell;
-          GeometryViewerDialog.render_geometry(item, columns, columnIndex);
+          GeometryViewer.render_geometry(item, columns, columnIndex);
         }
       });
 

@@ -18,64 +18,64 @@ describe('EWKB formatter test', function () {
     it('should return the view button for geometry', function () {
       // POINT(0 0)
       let ewkb = '010100000000000000000000000000000000000000';
-      expect(EWKBFromatter(row, cell, ewkb)).toContain('View Geometry');
+      expect(EWKBFromatter(row, cell, ewkb)).toContain('View geometry');
     });
     it('should return the view button for geometry', function () {
       // LINESTRING(0 0,1 1,1 2)
       let ewkb = '01020000000300000000000000000000000000000000000000000000000000' +
         'F03F000000000000F03F000000000000F03F0000000000000040';
-      expect(EWKBFromatter(row, cell, ewkb)).toContain('View Geometry');
+      expect(EWKBFromatter(row, cell, ewkb)).toContain('View geometry');
     });
     it('should return the view button for geometry', function () {
       // GEOMETRYCOLLECTION(POINT(2 3),LINESTRING(2 3,3 4))
       let ewkb = '01070000000200000001010000000000000000000040000000000000084001' +
         '02000000020000000000000000000040000000000000084000000000000008400000000' +
         '000001040';
-      expect(EWKBFromatter(row, cell, ewkb)).toContain('View Geometry');
+      expect(EWKBFromatter(row, cell, ewkb)).toContain('View geometry');
     });
     it('should return the view button for geometry', function () {
       // SRID=32632;POINT(0 0)
       let ewkb = '0101000020787F000000000000000000000000000000000000';
-      expect(EWKBFromatter(row, cell, ewkb)).toContain('View Geometry');
+      expect(EWKBFromatter(row, cell, ewkb)).toContain('View geometry');
     });
     it('should return the view button for geometry', function () {
       // SRID=4326;MULTIPOINTM(0 0 0,1 2 1)
       let ewkb = '0104000060E610000002000000010100004000000000000000000000000000' +
         '00000000000000000000000101000040000000000000F03F00000000000000400000000' +
         '00000F03F';
-      expect(EWKBFromatter(row, cell, ewkb)).toContain('View Geometry');
+      expect(EWKBFromatter(row, cell, ewkb)).toContain('View geometry');
     });
     it('should return the view button for geometry', function () {
       // GEOMETRYCOLLECTION(POINT(2 3),LINESTRING(2 3,3 4))
       let ewkb = '01070000000200000001010000000000000000000040000000000000084001' +
         '02000000020000000000000000000040000000000000084000000000000008400000000' +
         '000001040';
-      expect(EWKBFromatter(row, cell, ewkb)).toContain('View Geometry');
+      expect(EWKBFromatter(row, cell, ewkb)).toContain('View geometry');
     });
     it('should return the view button for geometry', function () {
       // POINT EMPTY
       let ewkb = '0101000000000000000000F87F000000000000F87F';
-      expect(EWKBFromatter(row, cell, ewkb)).toContain('View Geometry');
+      expect(EWKBFromatter(row, cell, ewkb)).toContain('View geometry');
     });
     it('should return the view button for geometry', function () {
       // LINESTRING EMPTY
       let ewkb = '010200000000000000';
-      expect(EWKBFromatter(row, cell, ewkb)).toContain('View Geometry');
+      expect(EWKBFromatter(row, cell, ewkb)).toContain('View geometry');
     });
     it('should return the view button for geometry', function () {
       // POLYGON EMPTY
       let ewkb = '010300000000000000';
-      expect(EWKBFromatter(row, cell, ewkb)).toContain('View Geometry');
+      expect(EWKBFromatter(row, cell, ewkb)).toContain('View geometry');
     });
     it('should return the view button for geometry', function () {
       // MULTIPOINT EMPTY
       let ewkb = '010400000000000000';
-      expect(EWKBFromatter(row, cell, ewkb)).toContain('View Geometry');
+      expect(EWKBFromatter(row, cell, ewkb)).toContain('View geometry');
     });
     it('should return the view button for geometry', function () {
       // GEOMETRYCOLLECTION EMPTY
       let ewkb = '010700000000000000';
-      expect(EWKBFromatter(row, cell, ewkb)).toContain('View Geometry');
+      expect(EWKBFromatter(row, cell, ewkb)).toContain('View geometry');
     });
   });
 
