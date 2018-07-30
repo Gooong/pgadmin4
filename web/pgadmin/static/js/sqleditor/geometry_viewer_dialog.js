@@ -84,7 +84,7 @@ function RenderAllGeometries(items, columns, columnIndex) {
     }
     return true;
   });
-
+  alert(geometryTotalByteLength);
   // group geometries by SRID
   let geometriesGroupBySRID = _.groupBy(geometries, 'srid');
   let SRIDGeometriesPairs = _.pairs(geometriesGroupBySRID);
@@ -107,14 +107,20 @@ function RenderAllGeometries(items, columns, columnIndex) {
     return itemToTable(item, columns);
   };
 
-  let infoContent = '';
+  let infoContent = [];
   if (tooLargeDataSize) {
-    infoContent += 'Too Large Data Size' +
-      '<i className="fa fa-question-circle" title="Due to performance limitations, this viewer only render 5MB geometry" aria-hidden="true"></i>';
+    infoContent.push('Too Large Data Size' +
+      '<i class="fa fa-question-circle" title="Due to performance limitations, just render geometry data up to 5MB." aria-hidden="true"></i>');
   }
   if (mixedSRID) {
-    infoContent += 'Mixed SRID, Current SRID: ' + selectedSRID +
-      '<i className="fa fa-question-circle" title="There are geometries with different SRIDs in this column" aria-hidden="true"></i>';
+    infoContent.push('Mixed SRID, Current SRID: ' + selectedSRID +
+      '<i class="fa fa-question-circle" title="There are geometries with different SRIDs in this column." aria-hidden="true"></i>');
+  }
+  if (geometries3D.length > 0) {
+    infoContent.push('3D geometry not rendered');
+  }
+  if (unsupportedItems.length > 0) {
+    infoContent.push('Unsupported geometry not rendered');
   }
 
   Alertify.mapDialog(geoJSONs, parseInt(selectedSRID), getPopupContent, infoContent);
@@ -149,23 +155,18 @@ function BuildGeometryViewerDialog() {
 
     let divContainer;
     let vectorLayer, osmLayer, lmap, popup, infoControl;
-    let geojsonMarkerOptions = {
+    const geojsonMarkerOptions = {
       radius: 4,
       weight: 2,
     };
-    let geojsonStyle = {
+    const geojsonStyle = {
       weight: 2,
     };
 
     return {
-      main: function (geojson, SRID, getPopupContent, infoContent) {
+      main: function (geojson, SRID, getPopupContent, infoContent = []) {
         //reset map
-        lmap.closePopup();
-        infoControl.remove();
-        vectorLayer.clearLayers();
-        vectorLayer.off('click');
         osmLayer.remove();
-        divContainer.removeClass('ewkb-viewer-container-plain-background');
 
         if (typeof getPopupContent === 'function') {
           vectorLayer.on('click', function (e) {
@@ -182,10 +183,11 @@ function BuildGeometryViewerDialog() {
           });
         }
 
-        if (!_.isUndefined(infoContent)) {
-          alert(infoContent);
+        if (infoContent.length > 0) {
+          //alert(infoContent);
+          let content = infoContent.join('<br/>');
           infoControl.addTo(lmap);
-          infoControl.update(infoContent);
+          infoControl.update(content);
         }
 
         try {
@@ -285,7 +287,7 @@ function BuildGeometryViewerDialog() {
         this.set('onresized', function () {
           setTimeout(function () {
             lmap.invalidateSize();
-          }, 200);
+          }, 50);
         });
         this.elements.dialog.style.width = '80%';
         this.elements.dialog.style.height = '60%';
@@ -294,6 +296,17 @@ function BuildGeometryViewerDialog() {
       prepare: function () {
         this.elements.dialog.style.width = '80%';
         this.elements.dialog.style.height = '60%';
+      },
+
+      hooks: {
+        onclose: function () {
+          //reset map
+          lmap.closePopup();
+          infoControl.remove();
+          vectorLayer.clearLayers();
+          vectorLayer.off('click');
+          divContainer.removeClass('ewkb-viewer-container-plain-background');
+        },
       },
     };
   });

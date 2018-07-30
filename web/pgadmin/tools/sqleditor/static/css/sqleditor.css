@@ -7,17 +7,17 @@
   position: absolute;
   left: 0;
   right: 0;
-  top : 0;
+  top: 0;
   bottom: 0;
 }
 
 .sql-editor-busy-fetching {
-  position:absolute;
+  position: absolute;
   left: 0;
   top: 65px;
   bottom: 0;
   right: 0;
-  margin:0;
+  margin: 0;
   padding: 0;
   background: black;
   opacity: 0.6;
@@ -28,7 +28,7 @@
   position: absolute;
   left: 0;
   right: 0;
-  top : 65px;
+  top: 65px;
   bottom: 0;
   z-index: 0;
 }
@@ -58,7 +58,7 @@
   min-height: 120px;
 }
 
-.filter-container .sql-textarea{
+.filter-container .sql-textarea {
   box-shadow: 0.1px 0.1px 3px #000;
   margin-bottom: 5px;
 }
@@ -91,7 +91,7 @@
 }
 
 .sql-editor-message {
-  white-space:pre-wrap;
+  white-space: pre-wrap;
   font-family: "Source Code Pro";
   padding-top: 5px;
   padding-left: 10px;
@@ -175,7 +175,6 @@
   content: "\25B6";
 }
 
-
 .sql-editor-explain {
   height: 100%;
   width: 100%;
@@ -191,9 +190,9 @@
   margin: 0;
   padding: 2px;
 
-  -webkit-box-shadow: 2px 3px 5px rgba(0,0,0,.2);
-  -moz-box-shadow: 2px 3px 5px rgba(0,0,0,.2);
-  box-shadow: 2px 3px 5px rgba(0,0,0,.2);
+  -webkit-box-shadow: 2px 3px 5px rgba(0, 0, 0, .2);
+  -moz-box-shadow: 2px 3px 5px rgba(0, 0, 0, .2);
+  box-shadow: 2px 3px 5px rgba(0, 0, 0, .2);
   border-radius: 3px;
   border: 1px solid #ccc;
 
@@ -252,7 +251,7 @@ li {
 }
 
 .slick-header-column.ui-state-default {
-    height: 32px !important;
+  height: 32px !important;
 }
 
 #datagrid .grid-header label {
@@ -441,7 +440,7 @@ input.editor-checkbox:focus {
 
 /* Override selected row color */
 #datagrid .slick-row .slick-cell.selected {
-    background-color: #DEE8F1;
+  background-color: #DEE8F1;
 }
 
 /* color the first column */
@@ -497,23 +496,25 @@ input.editor-checkbox:focus {
 
 /* Style for text editor */
 .pg_text_editor {
-  z-index:10000;
-  position:absolute;
+  z-index: 10000;
+  position: absolute;
   background: #fff;
   padding: 7px 5px 5px 1px;
-  border:2px solid #888;
-  -moz-border-radius:10px;
-  border-radius:10px;
+  border: 2px solid #888;
+  -moz-border-radius: 10px;
+  border-radius: 10px;
 }
+
 .pg_textarea {
-  backround:#fff;
-  width:250px;
-  height:80px;
-  border:0;
-  outline:0;
+  backround: #fff;
+  width: 250px;
+  height: 80px;
+  border: 0;
+  outline: 0;
 }
+
 .pg_buttons {
-  text-align:right;
+  text-align: right;
 }
 
 #datagrid .slick-row .slick-cell {
@@ -583,11 +584,12 @@ input.editor-checkbox:focus {
 }
 
 .ajs-body .warn-icon {
-  color:#f1c40f;
+  color: #f1c40f;
   font-size: 2em;
   margin-right: 20px;
   padding-top: 10px;
 }
+
 .ajs-body .warn-header {
   font-size: 13px;
   font-weight: bold;
@@ -627,11 +629,11 @@ input.editor-checkbox:focus {
 }
 
 .editor-title {
-  width:100%;
+  width: 100%;
 }
 
 .editor-title-connection {
-  width:calc(100% - 43px);
+  width: calc(100% - 43px);
 }
 
 .connection-status-show {
@@ -643,13 +645,13 @@ input.editor-checkbox:focus {
 }
 
 /* For slickgrid EWKB data viewer button */
-.btn-ewkb-viewer{
+.btn-ewkb-viewer {
   float: right;
   position: relative;
 }
 
 /* For EWKB data viewer dialog */
-.ewkb-viewer-container{
+.ewkb-viewer-container {
   width: 100%;
   height: 100%;
   background: url(data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAYAAADED76LAAAANElEQVQoU2O8e/fuf2VlZUYGLAAkB5bApggmBteJrAiZjWI0SAJkIrKVxCvAawVeRxLyJgB+Ajc1cwux9wAAAABJRU5ErkJggg==);
@@ -658,12 +660,12 @@ input.editor-checkbox:focus {
 }
 
 /* For leaflet map background */
-.ewkb-viewer-container-plain-background{
+.ewkb-viewer-container-plain-background {
   background: #ffffff;
 }
 
 /* For geometry column button */
-.div-view-geometry-column{
+.div-view-geometry-column {
   float: right;
   height: 100%;
   display: flex;
@@ -673,11 +675,11 @@ input.editor-checkbox:focus {
 }
 
 /* For leaflet popup */
-.leaflet-popup-content-wrapper{
-  border-radius: 4px;
+.leaflet-popup-content-wrapper {
+  border-radius: 2px;
 }
 
-.leaflet-popup-content{
+.leaflet-popup-content {
   margin: 5px;
   padding: 10px 10px 0;
   overflow-y: scroll;
@@ -685,18 +687,31 @@ input.editor-checkbox:focus {
 }
 
 /* For geometry viewer property table */
-.view-geometry-property-table{
+.view-geometry-property-table {
   table-layout: fixed;
   white-space: nowrap;
   padding: 0;
 }
 
-.view-geometry-property-table th{
+.view-geometry-property-table th {
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-.view-geometry-property-table td{
+.view-geometry-property-table td {
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+/* For geometry viewer info control */
+.geometry-viewer-info-control {
+  padding: 5px;
+  background: white;
+  border: 2px solid rgba(0, 0, 0, 0.2);
+  background-clip: padding-box;
+  border-radius: 2px;
+}
+
+.geometry-viewer-info-control i{
+  margin: 0 0 0 4px;
 }
