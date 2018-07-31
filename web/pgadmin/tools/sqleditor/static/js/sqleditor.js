@@ -32,7 +32,6 @@ define('tools.querytool', [
   'backgrid.sizeable.columns',
   'slick.pgadmin.formatters',
   'slick.pgadmin.editors',
-  'sources/slickgrid/custom_header_buttons',
   'pgadmin.browser',
   'pgadmin.tools.user_management',
 ], function(
@@ -591,6 +590,8 @@ define('tools.querytool', [
      - This plugin is useful for selecting rows using checkbox
      3) RowSelectionModel
      - This plugin is needed by CheckboxSelectColumn plugin to select rows
+     4) Slick.HeaderButtons
+     - This plugin is useful for add buttons in column header
 
      Grid Options:
      -------------
