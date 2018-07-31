@@ -28,8 +28,8 @@ function BuildGeometryViewerDialog() {
       const popupOption = {
         closeButton: false,
         minWidth: 260,
-        maxWidth: 400,
-        maxHeight: 420,
+        maxWidth: 300,
+        maxHeight: 320,
       };
 
       return {
@@ -144,7 +144,7 @@ function BuildGeometryViewerDialog() {
             }, 50);
           });
 
-          //this.elements.dialog.style.maxWidth = 'unset';
+          this.elements.dialog.style.maxWidth = 'unset';
           this.elements.dialog.style.width = '80%';
           this.elements.dialog.style.height = '60%';
         },

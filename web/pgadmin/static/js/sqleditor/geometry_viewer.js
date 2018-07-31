@@ -93,7 +93,7 @@ function renderGeometry(items, columns, columnIndex) {
   // generate map info content
   {
     if (tooLargeDataSize) {
-      infoContent.push(gettext('Too Large Data Size') +
+      infoContent.push(gettext('Too large data size') +
         '<i class="fa fa-question-circle" title="Due to performance limitations, just render geometry data up to 5MB." aria-hidden="true"></i>');
     }
     if (geometries3D.length > 0) {
@@ -132,7 +132,7 @@ function renderGeometry(items, columns, columnIndex) {
   };
 
   if (mixedSRID) {
-    infoContent.push(gettext('Mixed SRID, Current SRID:') + selectedSRID +
+    infoContent.push(gettext('Mixed SRIDs, current SRID:') + selectedSRID +
       '<i class="fa fa-question-circle" title="There are geometries with different SRIDs in this column." aria-hidden="true"></i>');
   }
 

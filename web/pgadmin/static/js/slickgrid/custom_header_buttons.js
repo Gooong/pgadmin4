@@ -10,7 +10,7 @@
 
 
   /***
-   * custom header button inherited from slick.headerbuttons.js
+   * custom header button modified from slick.headerbuttons.js
    *
    * USAGE:
    *

@@ -581,6 +581,7 @@ define('tools.querytool', [
     },
 
     /* Regarding SlickGrid usage in render_grid function.
+
      SlickGrid Plugins:
      ------------------
      1) Slick.AutoTooltips
@@ -590,6 +591,7 @@ define('tools.querytool', [
      - This plugin is useful for selecting rows using checkbox
      3) RowSelectionModel
      - This plugin is needed by CheckboxSelectColumn plugin to select rows
+
      Grid Options:
      -------------
      1) editable
@@ -606,10 +608,12 @@ define('tools.querytool', [
      - This option allow us to enter in edit mode directly when user clicks on it
      otherwise user have to double click or manually press enter on cell to go
      in cell edit mode
+
      Handling of data:
      -----------------
      We are doing data handling manually,what user adds/updates/deletes etc
      we will use `data_store` object to store everything user does within grid data
+
      - updated:
      This will hold all the data which user updates in grid
      - added:
@@ -618,6 +622,7 @@ define('tools.querytool', [
      This will hold all the data which user copies/pastes/deletes in grid
      - deleted:
      This will hold all the data which user deletes in grid
+
      Events handling:
      ----------------
      1) onCellChange

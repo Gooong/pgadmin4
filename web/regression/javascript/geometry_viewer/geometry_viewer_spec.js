@@ -173,6 +173,38 @@ describe('geometry viewer test', function () {
       expect(Alertify.mapDialog.calls.mostRecent().args[0].length).toBe(1);
     });
 
+
+    it('should support mixed geometry type', function () {
+      // GEOMETRYCOLLECTION EMPTY
+      let ewkb = '010700000000000000';
+      // POINT(0 0)
+      let ewkb1 = '010100000000000000000000000000000000000000';
+      // SRID=4326;MULTIPOINTM(0 0 0,1 2 1)
+      let ewkb2 = '0104000060E610000002000000010100004000000000000000000000000000' +
+        '00000000000000000000000101000040000000000000F03F00000000000000400000000' +
+        '00000F03F';
+      let items = [{
+        id: 1,
+        geom: ewkb,
+      }, {
+        id: 1,
+        geom: ewkb1,
+      }, {
+        id: 1,
+        geom: ewkb2,
+      }];
+      let columns = [
+        {
+          column_type_internal: 'geometry',
+          field: 'geom',
+        },
+      ];
+      let columnIndex = 0;
+      renderGeometry(items, columns, columnIndex);
+      expect(Alertify.mapDialog.calls.mostRecent().args[0].length).toBe(2);
+    });
+
+
     it('should not support 3D geometry', function () {
       // POINT(0 0 0)
       let ewkb = '0101000080000000000000F03F000000000000F03F000000000000F03F';
@@ -251,85 +283,5 @@ describe('geometry viewer test', function () {
       renderGeometry(items, columns, columnIndex);
       expect(Alertify.mapDialog.calls.mostRecent().args[0].length).toBeLessThan(600000);
     });
-
-
   });
 });
-
-// describe('render geometry test', function () {
-//   let render_geometry = GeometryViewer.render_geometry;
-//   beforeEach(function () {
-//     // POINT(0 0)
-//     let ewkb = '010100000000000000000000000000000000000000';
-//     let item = {
-//       id: 1,
-//       geom: ewkb,
-//     };
-//     let columns = [
-//       {
-//         column_type_internal: 'geometry',
-//         field: 'geom',
-//       },
-//     ];
-//     let columnIndex = 0;
-//     render_geometry(item, columns, columnIndex);
-//     spyOn(Alertify, 'mapDialog');
-//   });
-//
-//   it('should call Alertify.mapDialog', function () {
-//     // POINT(0 0)
-//     let ewkb = '010100000000000000000000000000000000000000';
-//     let item = {
-//       id: 1,
-//       geom: ewkb,
-//     };
-//     let columns = [
-//       {
-//         column_type_internal: 'geometry',
-//         field: 'geom',
-//       },
-//     ];
-//     let columnIndex = 0;
-//     render_geometry(item, columns, columnIndex);
-//     expect(Alertify.mapDialog).toHaveBeenCalledTimes(1);
-//   });
-//
-//   it('should not call Alertify.mapDialog', function () {
-//     // POINT(0 0 0)
-//     let ewkb = '0101000080000000000000F03F000000000000F03F000000000000F03F';
-//     let item = {
-//       id: 1,
-//       geom: ewkb,
-//     };
-//     let columns = [
-//       {
-//         column_type_internal: 'geometry',
-//         field: 'geom',
-//       },
-//     ];
-//     let columnIndex = 0;
-//     render_geometry(item, columns, columnIndex);
-//     expect(Alertify.mapDialog).not.toHaveBeenCalled();
-//   });
-//
-//   it('should not call Alertify.mapDialog', function () {
-//     // TRIANGLE ((0 0, 0 9, 9 0, 0 0))
-//     let ewkb = '01110000000100000004000000000000000000000000000000000000000000' +
-//       '00000000000000000000000022400000000000002240000000000000000000000000000' +
-//       '000000000000000000000';
-//     let item = {
-//       id: 1,
-//       geom: ewkb,
-//     };
-//     let columns = [
-//       {
-//         column_type_internal: 'geometry',
-//         field: 'geom',
-//       },
-//     ];
-//     let columnIndex = 0;
-//     render_geometry(item, columns, columnIndex);
-//     expect(Alertify.mapDialog).not.toHaveBeenCalled();
-//   });
-// });
-//
