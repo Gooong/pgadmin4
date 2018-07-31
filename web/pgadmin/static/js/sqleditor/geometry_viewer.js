@@ -40,12 +40,14 @@ function renderGeometry(items, columns, columnIndex) {
   const maxRenderByteLength = 5 * 1024 * 1024; //render geometry data up to 5MB
   let field = columns[columnIndex].field;
   let geometries3D = [],
-    geometries = [],
+    supportedGeometries = [],
     unsupportedItems = [],
+    infoContent = [],
     geometryItemMap = new Map(),
     mixedSRID = false,
     geometryTotalByteLength = 0,
     tooLargeDataSize = false;
+
 
   if (_.isUndefined(items)) {
     Alertify.alert(gettext('Geometry Viewer Error'), gettext('Empty data'));
@@ -61,6 +63,7 @@ function renderGeometry(items, columns, columnIndex) {
     return;
   }
 
+  // parse ewkb data
   _.every(items, function (item) {
     try {
       let value = item[field];
@@ -74,10 +77,11 @@ function renderGeometry(items, columns, columnIndex) {
           tooLargeDataSize = true;
           return false;
         }
+
         if (!geometry.srid) {
           geometry.srid = 0;
         }
-        geometries.push(geometry);
+        supportedGeometries.push(geometry);
         geometryItemMap.set(geometry, item);
       }
     } catch (e) {
@@ -86,12 +90,32 @@ function renderGeometry(items, columns, columnIndex) {
     return true;
   });
 
+  // generate map info content
+  {
+    if (tooLargeDataSize) {
+      infoContent.push(gettext('Too Large Data Size') +
+        '<i class="fa fa-question-circle" title="Due to performance limitations, just render geometry data up to 5MB." aria-hidden="true"></i>');
+    }
+    if (geometries3D.length > 0) {
+      infoContent.push(gettext('3D geometry not rendered'));
+    }
+    if (unsupportedItems.length > 0) {
+      infoContent.push(gettext('Unsupported geometry not rendered'));
+    }
+  }
+
+  if (supportedGeometries.length === 0) {
+    Alertify.mapDialog([], 0, undefined, infoContent);
+    return;
+  }
+
   // group geometries by SRID
-  let geometriesGroupBySRID = _.groupBy(geometries, 'srid');
+  let geometriesGroupBySRID = _.groupBy(supportedGeometries, 'srid');
   let SRIDGeometriesPairs = _.pairs(geometriesGroupBySRID);
   if (SRIDGeometriesPairs.length > 1) {
     mixedSRID = true;
   }
+  // select the largest group
   let selectedPair = _.max(SRIDGeometriesPairs, function (pair) {
     return pair[1].length;
   });
@@ -103,137 +127,17 @@ function renderGeometry(items, columns, columnIndex) {
   });
   let getPopupContent = function (geojson) {
     let geometry = selectedGeometries[geoJSONs.indexOf(geojson)];
-    //alert(JSON.stringify(geometryItemMap.has(geometry)));
     let item = geometryItemMap.get(geometry);
     return itemToTable(item, columns);
   };
 
-  let infoContent = [];
-  if (tooLargeDataSize) {
-    infoContent.push('Too Large Data Size' +
-      '<i class="fa fa-question-circle" title="Due to performance limitations, just render geometry data up to 5MB." aria-hidden="true"></i>');
-  }
   if (mixedSRID) {
-    infoContent.push('Mixed SRID, Current SRID: ' + selectedSRID +
+    infoContent.push(gettext('Mixed SRID, Current SRID:') + selectedSRID +
       '<i class="fa fa-question-circle" title="There are geometries with different SRIDs in this column." aria-hidden="true"></i>');
-  }
-  if (geometries3D.length > 0) {
-    infoContent.push('3D geometry not rendered');
-  }
-  if (unsupportedItems.length > 0) {
-    infoContent.push('Unsupported geometry not rendered');
   }
 
   Alertify.mapDialog(geoJSONs, parseInt(selectedSRID), getPopupContent, infoContent);
 }
-
-//
-// function RenderGeometries(items, columns, columnIndex) {
-//   BuildGeometryViewerDialog();
-//   const maxRenderByteLength = 5 * 1024 * 1024; //render geometry data up to 5MB
-//   let field = columns[columnIndex].field,
-//     geometries3D = [],
-//     geometries = [],
-//     unsupportedItems = [],
-//     geometryItemMap = new Map(),
-//     mixedSRID = false,
-//     geometryTotalByteLength = 0,
-//     tooLargeDataSize = false;
-//
-//   if (!_.isArray(items) || items.length === 0) {
-//     Alertify.alert(gettext('Geometry Viewer Error'), gettext('Empty column'));
-//     return;
-//   }
-//
-//   _.every(items, function (item) {
-//     try {
-//       let value = item[field];
-//       let buffer = new Buffer(value, 'hex');
-//       let geometry = Geometry.parse(buffer);
-//       if (geometry.hasZ) {
-//         geometries3D.push(geometry);
-//       } else {
-//         geometryTotalByteLength += buffer.byteLength;
-//         if (geometryTotalByteLength > maxRenderByteLength) {
-//           tooLargeDataSize = true;
-//           return false;
-//         }
-//         if (!geometry.srid) {
-//           geometry.srid = 0;
-//         }
-//         geometries.push(geometry);
-//         geometryItemMap.set(geometry, item);
-//       }
-//     } catch (e) {
-//       unsupportedItems.push(item);
-//     }
-//     return true;
-//   });
-//   // group geometries by SRID
-//   let geometriesGroupBySRID = _.groupBy(geometries, 'srid');
-//   let SRIDGeometriesPairs = _.pairs(geometriesGroupBySRID);
-//   if (SRIDGeometriesPairs.length > 1) {
-//     mixedSRID = true;
-//   }
-//   let selectedPair = _.max(SRIDGeometriesPairs, function (pair) {
-//     return pair[1].length;
-//   });
-//   let selectedSRID = selectedPair[0];
-//   let selectedGeometries = selectedPair[1];
-//   let geoJSONs = _.map(selectedPair[1], function (geometry) {
-//     return geometry.toGeoJSON();
-//   });
-//
-//   let getPopupContent = function (geojson) {
-//     let geometry = selectedGeometries[geoJSONs.indexOf(geojson)];
-//     //alert(JSON.stringify(geometryItemMap.has(geometry)));
-//     let item = geometryItemMap.get(geometry);
-//     return itemToTable(item, columns);
-//   };
-//
-//   let infoContent = [];
-//   if (tooLargeDataSize) {
-//     infoContent.push('Too Large Data Size' +
-//       '<i class="fa fa-question-circle" title="Due to performance limitations, just render geometry data up to 5MB." aria-hidden="true"></i>');
-//   }
-//   if (mixedSRID) {
-//     infoContent.push('Mixed SRID, Current SRID: ' + selectedSRID +
-//       '<i class="fa fa-question-circle" title="There are geometries with different SRIDs in this column." aria-hidden="true"></i>');
-//   }
-//   if (geometries3D.length > 0) {
-//     infoContent.push('3D geometry not rendered');
-//   }
-//   if (unsupportedItems.length > 0) {
-//     infoContent.push('Unsupported geometry not rendered');
-//   }
-//
-//   Alertify.mapDialog(geoJSONs, parseInt(selectedSRID), getPopupContent, infoContent);
-// }
-//
-// function renderSingleGeometry(item, columns, columnIndex) {
-//   BuildGeometryViewerDialog();
-//
-//   let value = item[columns[columnIndex].field];
-//   let geometry;
-//   try {
-//     let buffer = new Buffer(value, 'hex');
-//     geometry = Geometry.parse(buffer);
-//   } catch (e) {
-//     Alertify.alert(gettext('Geometry Viewer Error'), gettext('Can not render geometry of this type'));
-//     return;
-//   }
-//
-//   if (geometry.hasZ) {
-//     Alertify.alert(gettext('Geometry Viewer Error'), gettext('Can not render 3d geometry'));
-//   } else {
-//     let geojson = geometry.toGeoJSON();
-//     let getPopupContent = function () {
-//       //alert(JSON.stringify(geojson == geojson));
-//       return itemToTable(item, columns);
-//     };
-//     Alertify.mapDialog(geojson, geometry.srid, getPopupContent);
-//   }
-// }
 
 function itemToTable(item, columns) {
   let content = '<table class="table table-bordered table-striped view-geometry-property-table"><tbody>';
