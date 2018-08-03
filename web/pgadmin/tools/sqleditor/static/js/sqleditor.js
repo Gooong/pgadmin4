@@ -819,10 +819,21 @@ define('tools.querytool', [
       grid.registerPlugin(gridSelector);
       var headerButtonsPlugin = new Slick.Plugins.HeaderButtons();
       headerButtonsPlugin.onCommand.subscribe(function (e, args) {
-        let items = args.grid.getData().getItems();
         let columns = args.grid.getColumns();
         let columnIndex = columns.indexOf(args.column);
-        GeometryViewer.render_geometry(items, columns, columnIndex);
+
+        if (self.handler.has_more_rows){
+          // fetch all the data before rendering geometries in the column.
+          self.fetch_next_all(function () {
+            let items = args.grid.getData().getItems();
+            GeometryViewer.render_geometry(items, columns, columnIndex);
+          });
+        }else{
+          let items = args.grid.getData().getItems();
+          GeometryViewer.render_geometry(items, columns, columnIndex);
+        }
+
+
       });
       grid.registerPlugin(headerButtonsPlugin);
 
