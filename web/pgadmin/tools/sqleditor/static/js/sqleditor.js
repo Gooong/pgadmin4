@@ -821,16 +821,18 @@ define('tools.querytool', [
       headerButtonsPlugin.onCommand.subscribe(function (e, args) {
         let columns = args.grid.getColumns();
         let columnIndex = columns.indexOf(args.column);
-
-        if (self.handler.has_more_rows){
+        let command = args.command;
+        if(command === 'view-all-geometries'){
+          if (self.handler.has_more_rows){
           // fetch all the data before rendering geometries in the column.
-          self.fetch_next_all(function () {
+            self.fetch_next_all(function () {
+              let items = args.grid.getData().getItems();
+              GeometryViewer.render_geometry(items, columns, columnIndex);
+            });
+          }else{
             let items = args.grid.getData().getItems();
             GeometryViewer.render_geometry(items, columns, columnIndex);
-          });
-        }else{
-          let items = args.grid.getData().getItems();
-          GeometryViewer.render_geometry(items, columns, columnIndex);
+          }
         }
       });
       grid.registerPlugin(headerButtonsPlugin);
