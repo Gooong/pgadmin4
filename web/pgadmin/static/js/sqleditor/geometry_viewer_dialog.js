@@ -61,10 +61,11 @@ function BuildGeometryViewerDialog() {
           }
 
           if (typeof getPopupContent === 'function') {
+            let getContent = function (layer) {
+              return getPopupContent(layer.feature.geometry);
+            };
             let addPopup = function (layer) {
-              layer.bindPopup(function () {
-                return getPopupContent(layer.feature.geometry);
-              }, popupOption);
+              layer.bindPopup(getContent, popupOption);
             };
             vectorLayer.eachLayer(addPopup);
           }
