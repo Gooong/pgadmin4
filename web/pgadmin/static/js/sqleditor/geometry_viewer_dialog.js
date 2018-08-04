@@ -61,11 +61,10 @@ function BuildGeometryViewerDialog() {
           }
 
           if (typeof getPopupContent === 'function') {
-            let getContent = function (layer) {
-              return getPopupContent(layer.feature.geometry);
-            };
             let addPopup = function (layer) {
-              layer.bindPopup(getContent, popupOption);
+              layer.bindPopup(function () {
+                return getPopupContent(layer.feature.geometry);
+              }, popupOption);
             };
             vectorLayer.eachLayer(addPopup);
           }
@@ -113,7 +112,7 @@ function BuildGeometryViewerDialog() {
         build: function () {
           //hide close button
           this.elements.commands.close.style = 'visibility:hidden';
-          
+
           divContainer = $('<div class="ewkb-viewer-container"></div>');
           this.elements.content.appendChild(divContainer.get(0));
           vectorLayer = L.geoJSON([], {
