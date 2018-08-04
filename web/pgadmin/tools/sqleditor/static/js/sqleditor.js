@@ -832,8 +832,6 @@ define('tools.querytool', [
           let items = args.grid.getData().getItems();
           GeometryViewer.render_geometry(items, columns, columnIndex);
         }
-
-
       });
       grid.registerPlugin(headerButtonsPlugin);
 
