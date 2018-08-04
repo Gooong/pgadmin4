@@ -108,7 +108,7 @@ To view individual geometry, click corresponding button in the cell. To view all
 
 - *About SRID:* If there are geometries with different SRIDs in the same column, the viewer will render geometries with the same SRID in the map. If SRID=4326 the OSM tile layer will be added in the map.
 
-- *About data size:* For performance considerations, the viewer will render geometry data up to 5MB.
+- *About data size:* For performance considerations, the viewer will render geometries no more than 100000, totaling up to 20MB.
 
 **Sort/Filter options dialog**
 

@@ -23,7 +23,7 @@ function BuildGeometryViewerDialog() {
         weight: 3,
       };
       const geojsonStyle = {
-        weight: 3,
+        weight: 2,
       };
       const popupOption = {
         closeButton: false,

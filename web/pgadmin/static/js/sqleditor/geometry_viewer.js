@@ -36,7 +36,8 @@ let GeometryViewer = {
 
 function renderGeometry(items, columns, columnIndex) {
   BuildGeometryViewerDialog();
-  const maxRenderByteLength = 5 * 1024 * 1024; //render geometry data up to 5MB
+  const maxRenderByteLength = 20 * 1024 * 1024; //render geometry data up to 20MB
+  const maxRenderGeometries = 100000; // render geometries up to 100000
   let field = columns[columnIndex].field;
   let geometries3D = [],
     supportedGeometries = [],
@@ -45,7 +46,8 @@ function renderGeometry(items, columns, columnIndex) {
     geometryItemMap = new Map(),
     mixedSRID = false,
     geometryTotalByteLength = 0,
-    tooLargeDataSize = false;
+    tooLargeDataSize = false,
+    tooManyGeometris = false;
 
 
   if (_.isUndefined(items)) {
@@ -76,6 +78,10 @@ function renderGeometry(items, columns, columnIndex) {
           tooLargeDataSize = true;
           return false;
         }
+        if(supportedGeometries.length >= maxRenderGeometries){
+          tooManyGeometris = true;
+          return false;
+        }
 
         if (!geometry.srid) {
           geometry.srid = 0;
@@ -91,11 +97,9 @@ function renderGeometry(items, columns, columnIndex) {
 
   // generate map info content
   {
-    if (tooLargeDataSize) {
-      let notParsedNum = items.length - (supportedGeometries.length + unsupportedItems.length + geometries3D.length);
-      let content = notParsedNum + (notParsedNum > 1 ? ' geometries': ' geometry') + ' not parsed.';
-      infoContent.push(content +
-        '<i class="fa fa-question-circle" title="Due to performance limitations, just render geometry data up to 5MB." aria-hidden="true"></i>');
+    if (tooLargeDataSize || tooManyGeometris) {
+      infoContent.push(supportedGeometries.length + ' geometries rendered' +
+        '<i class="fa fa-question-circle" title="Due to performance limitations, the extra geometries are not rendered" aria-hidden="true"></i>');
     }
     if (geometries3D.length > 0) {
       infoContent.push(gettext('3D geometries not rendered.'));
@@ -133,7 +137,7 @@ function renderGeometry(items, columns, columnIndex) {
   };
 
   if (mixedSRID) {
-    infoContent.push(gettext('Geometries with other non-SRID_') + selectedSRID + ' not rendered.' +
+    infoContent.push(gettext('Geometries with non-SRID') + selectedSRID + ' not rendered.' +
       '<i class="fa fa-question-circle" title="There are geometries with different SRIDs in this column." aria-hidden="true"></i>');
   }
 
