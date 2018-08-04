@@ -111,6 +111,9 @@ function BuildGeometryViewerDialog() {
         },
 
         build: function () {
+          //hide close button
+          this.elements.commands.close.style = 'visibility:hidden';
+          
           divContainer = $('<div class="ewkb-viewer-container"></div>');
           this.elements.content.appendChild(divContainer.get(0));
           vectorLayer = L.geoJSON([], {
