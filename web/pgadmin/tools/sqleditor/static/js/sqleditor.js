@@ -2428,9 +2428,11 @@ define('tools.querytool', [
             col_cell = 'binary';
             break;
           case 'geometry':
+            // PostGIS geometry type
             col_cell = 'geometry';
             break;
           case 'geography':
+            // PostGIS geography type
             col_cell = 'geography';
             break;
           default:

@@ -699,6 +699,10 @@ input.editor-checkbox:focus {
   text-overflow: ellipsis;
 }
 
+.view-geometry-property-table .td-disabled{
+  color: #999999;
+}
+
 /* For geometry viewer info control */
 .geometry-viewer-info-control {
   padding: 5px;

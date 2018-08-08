@@ -49,7 +49,6 @@ function renderGeometry(items, columns, columnIndex) {
     tooLargeDataSize = false,
     tooManyGeometris = false;
 
-
   if (_.isUndefined(items)) {
     Alertify.alert(gettext('Geometry Viewer Error'), gettext('Empty data'));
     return;
@@ -78,7 +77,7 @@ function renderGeometry(items, columns, columnIndex) {
           tooLargeDataSize = true;
           return false;
         }
-        if(supportedGeometries.length >= maxRenderGeometries){
+        if (supportedGeometries.length >= maxRenderGeometries) {
           tooManyGeometris = true;
           return false;
         }
@@ -130,11 +129,16 @@ function renderGeometry(items, columns, columnIndex) {
   let geoJSONs = _.map(selectedGeometries, function (geometry) {
     return geometry.toGeoJSON();
   });
-  let getPopupContent = function (geojson) {
-    let geometry = selectedGeometries[geoJSONs.indexOf(geojson)];
-    let item = geometryItemMap.get(geometry);
-    return itemToTable(item, columns);
-  };
+
+  let getPopupContent;
+  if (columns.length >= 3) {
+    // add popup when geometry has properties
+    getPopupContent = function (geojson) {
+      let geometry = selectedGeometries[geoJSONs.indexOf(geojson)];
+      let item = geometryItemMap.get(geometry);
+      return itemToTable(item, columns, columnIndex);
+    };
+  }
 
   if (mixedSRID) {
     infoContent.push(gettext('Geometries with non-SRID') + selectedSRID + ' not rendered.' +
@@ -144,26 +148,28 @@ function renderGeometry(items, columns, columnIndex) {
   Alertify.mapDialog(geoJSONs, parseInt(selectedSRID), getPopupContent, infoContent);
 }
 
-function itemToTable(item, columns) {
+function itemToTable(item, columns, ignoredColumnIndex) {
   let content = '<table class="table table-bordered table-striped view-geometry-property-table"><tbody>';
-  _.each(columns, function (columnDef) {
-    if (!_.isUndefined(columnDef.display_name)) {
-      content += '<tr><th>' + columnDef.display_name + '</th>' + '<td>';
+
+  // start from 1 because columns[0] is empty
+  for (let i = 1; i < columns.length; i++) {
+    if (i !== ignoredColumnIndex) {
+      let columnDef = columns[i];
+      content += '<tr><th>' + columnDef.display_name + '</th>';
 
       let value = item[columnDef.field];
       if (_.isUndefined(value) && columnDef.has_default_val) {
-        content += '<i>[default]</i>';
-      } else if (
-        (_.isUndefined(value) && columnDef.not_null) ||
-        (_.isUndefined(value) || value === null)
-      ) {
-        content += '<i>[null]</i>';
+        content += '<td class="td-disabled">[default]</td>';
+      } else if ((_.isUndefined(value) && columnDef.not_null) ||
+        (_.isUndefined(value) || value === null)) {
+        content += '<td class="td-disabled">[null]</td>';
       } else {
-        content += value;
+        content += '<td>' + value + '</td>';
       }
-      content += '</td></tr>';
+
+      content += '</tr>';
     }
-  });
+  }
   content += '</tbody></table>';
   return content;
 }

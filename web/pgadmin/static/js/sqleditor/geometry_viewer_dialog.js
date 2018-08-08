@@ -11,13 +11,20 @@ import Alertify from 'pgadmin.alertifyjs';
 import L from 'leaflet';
 import gettext from 'sources/gettext';
 import $ from 'jquery';
+import 'leaflet-providers/leaflet-providers';
 
 function BuildGeometryViewerDialog() {
   if (!Alertify.mapDialog) {
     Alertify.dialog('mapDialog', function () {
 
       let divContainer;
-      let vectorLayer, osmLayer, lmap, infoControl;
+      let vectorLayer,
+        //osmLayer,
+        baseLayers,
+        lmap,
+        infoControl,
+        layerControl;
+
       const geojsonMarkerOptions = {
         radius: 4,
         weight: 3,
@@ -76,7 +83,7 @@ function BuildGeometryViewerDialog() {
             divContainer.addClass('ewkb-viewer-container-plain-background');
             lmap.options.crs = L.CRS.EPSG3857;
             lmap.setMinZoom(0);
-            osmLayer.addTo(lmap);
+            layerControl.addTo(lmap);
           } else {
             lmap.options.crs = L.CRS.Simple;
             if (maxLength >= 180) {
@@ -115,20 +122,29 @@ function BuildGeometryViewerDialog() {
 
           divContainer = $('<div class="ewkb-viewer-container"></div>');
           this.elements.content.appendChild(divContainer.get(0));
+          lmap = L.map(divContainer.get(0), {
+            preferCanvas: true,
+          });
           vectorLayer = L.geoJSON([], {
             style: geojsonStyle,
             pointToLayer: function (feature, latlng) {
               return L.circleMarker(latlng, geojsonMarkerOptions);
             },
           });
-          osmLayer = L.tileLayer('http://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '<a target="_blank" href="https://www.openstreetmap.org/copyright">' +
-              '&copy; OpenStreetMap</a>',
-          });
-          lmap = L.map(divContainer.get(0), {
-            preferCanvas: true,
-          });
           vectorLayer.addTo(lmap);
+
+          baseLayers = {
+            'Empty': L.tileLayer(''),
+            'Street': L.tileLayer.provider('OpenStreetMap.Mapnik'),
+            'Topography': L.tileLayer.provider('OpenTopoMap'),
+            'Gray Style': L.tileLayer.provider('CartoDB.Positron'),
+            'Light Color': L.tileLayer.provider('CartoDB.Voyager'),
+            'Dark Matter': L.tileLayer.provider('CartoDB.DarkMatter'),
+          };
+          layerControl = L.control.layers(baseLayers);
+          // add OpenStreetMap layer by default
+          baseLayers.Street.addTo(lmap);
+
           infoControl = L.control({
             position: 'topright',
           });
@@ -163,7 +179,7 @@ function BuildGeometryViewerDialog() {
             infoControl.remove();
             vectorLayer.clearLayers();
             divContainer.removeClass('ewkb-viewer-container-plain-background');
-            osmLayer.remove();
+            layerControl.remove();
           },
         },
       };
