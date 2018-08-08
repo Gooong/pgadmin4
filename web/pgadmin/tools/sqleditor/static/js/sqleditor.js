@@ -822,14 +822,14 @@ define('tools.querytool', [
         let columns = args.grid.getColumns();
         let columnIndex = columns.indexOf(args.column);
         let command = args.command;
-        if(command === 'view-all-geometries'){
-          if (self.handler.has_more_rows){
-          // fetch all the data before rendering geometries in the column.
+        if (command === 'view-all-geometries') {
+          if (self.handler.has_more_rows) {
+            // fetch all the data before rendering geometries in the column.
             self.fetch_next_all(function () {
               let items = args.grid.getData().getItems();
               GeometryViewer.render_geometry(items, columns, columnIndex);
             });
-          }else{
+          } else {
             let items = args.grid.getData().getItems();
             GeometryViewer.render_geometry(items, columns, columnIndex);
           }
