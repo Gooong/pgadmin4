@@ -156,7 +156,7 @@ function BuildGeometryViewerDialog() {
             this._div.innerHTML = content;
           };
 
-          Alertify.pgDialogBuild.apply(this);
+          //Alertify.pgDialogBuild.apply(this);
           this.set('onresized', function () {
             setTimeout(function () {
               lmap.invalidateSize();
@@ -164,8 +164,9 @@ function BuildGeometryViewerDialog() {
           });
 
           this.elements.dialog.style.maxWidth = 'unset';
-          this.elements.dialog.style.width = '80%';
-          this.elements.dialog.style.height = '60%';
+          this.elements.dialog.style.minWidth = 'unset';
+          this.elements.dialog.style.maxHeight = 'unset';
+          this.elements.dialog.style.minHeight = 'unset';
         },
 
         hooks: {

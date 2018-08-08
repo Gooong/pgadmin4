@@ -145,7 +145,7 @@ function renderGeometry(items, columns, columnIndex) {
       '<i class="fa fa-question-circle" title="There are geometries with different SRIDs in this column." aria-hidden="true"></i>');
   }
 
-  Alertify.mapDialog(geoJSONs, parseInt(selectedSRID), getPopupContent, infoContent);
+  Alertify.mapDialog(geoJSONs, parseInt(selectedSRID), getPopupContent, infoContent).resizeTo('80%', '60%');
 }
 
 function itemToTable(item, columns, ignoredColumnIndex) {
