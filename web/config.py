@@ -50,7 +50,7 @@ APP_ICON = 'pg-icon'
 
 # Application version number components
 APP_RELEASE = 3
-APP_REVISION = 1
+APP_REVISION = 2
 
 # Application version suffix, e.g. 'beta1', 'dev'. Usually an empty string
 # for GA releases.
@@ -59,7 +59,7 @@ APP_SUFFIX = ''
 # Numeric application version for upgrade checks. Should be in the format:
 # [X]XYYZZ, where X is the release version, Y is the revision, with a leading
 # zero if needed, and Z represents the suffix, with a leading zero if needed
-APP_VERSION_INT = 30100
+APP_VERSION_INT = 30200
 
 # DO NOT CHANGE!
 # The application version string, constructed from the components
@@ -83,12 +83,13 @@ HELP_PATH = '../../../docs/en_US/_build/html/'
 LANGUAGES = {
     'en': 'English',
     'zh': 'Chinese (Simplified)',
-    'de': 'German',
     'fr': 'French',
-    'ko': 'Korean',
+    'de': 'German',
     'ja': 'Japanese',
+    'ko': 'Korean',
     'pl': 'Polish',
-    'ru': 'Russian'
+    'ru': 'Russian',
+    'es': 'Spanish',
 }
 
 # DO NOT CHANGE UNLESS YOU KNOW WHAT YOU ARE DOING!
@@ -154,6 +155,15 @@ SECURITY_PASSWORD_HASH = 'pbkdf2_sha512'
 # NOTE: The HTMLMIN module doesn't work with Python 2.6, so this option
 #       has no effect on <= Python 2.7.
 MINIFY_PAGE = True
+
+# This will be added to static urls as url parameter with value as
+# APP_VERSION_INT for cache busting on version upgrade. If the value is set as
+# None or empty string then it will not be added.
+# eg - http:localhost:5050/pgadmin.css?intver=3.13
+APP_VERSION_PARAM = 'ver'
+
+# Add the internal version param to below extensions only
+APP_VERSION_EXTN = ('.css', '.js', '.html', '.svg', '.png', '.gif', '.ico')
 
 # Data directory for storage of config settings etc. This shouldn't normally
 # need to be changed - it's here as various other settings depend on it.
@@ -381,6 +391,9 @@ SESSION_SKIP_PATHS = [
 # SSH Tunneling supports only for Python 2.7 and 3.4+
 ##########################################################################
 SUPPORT_SSH_TUNNEL = True
+# Allow SSH Tunnel passwords to be saved if the user chooses.
+# Set to False to disable password saving.
+ALLOW_SAVE_TUNNEL_PASSWORD = False
 
 ##########################################################################
 # Local config settings
@@ -404,3 +417,4 @@ if (SUPPORT_SSH_TUNNEL is True and
     ((sys.version_info[0] == 2 and sys.version_info[1] < 7) or
      (sys.version_info[0] == 3 and sys.version_info[1] < 4))):
     SUPPORT_SSH_TUNNEL = False
+    ALLOW_SAVE_TUNNEL_PASSWORD = False
