@@ -642,12 +642,6 @@ input.editor-checkbox:focus {
   display: none;
 }
 
-/* For slickgrid EWKB data viewer button */
-.btn-ewkb-viewer {
-  float: right;
-  position: relative;
-}
-
 /* For EWKB data viewer dialog */
 .ewkb-viewer-container {
   width: 100%;

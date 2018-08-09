@@ -50,7 +50,7 @@ function renderGeometry(items, columns, columnIndex) {
     tooManyGeometris = false;
 
   if (_.isUndefined(items)) {
-    Alertify.alert(gettext('Geometry Viewer Error'), gettext('Empty data'));
+    Alertify.alert(gettext('Geometry Viewer Error'), gettext('Empty data.'));
     return;
   }
 
@@ -59,7 +59,7 @@ function renderGeometry(items, columns, columnIndex) {
   }
 
   if (items.length === 0) {
-    Alertify.alert(gettext('Geometry Viewer Error'), gettext('Empty Column'));
+    Alertify.alert(gettext('Geometry Viewer Error'), gettext('Please select the row(s) to display.'));
     return;
   }
 

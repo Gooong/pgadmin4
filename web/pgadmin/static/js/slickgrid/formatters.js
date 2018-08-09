@@ -4,8 +4,6 @@
  * @module Formatters
  * @namespace Slick
  */
-import {Geometry} from 'wkx';
-import {Buffer} from 'buffer';
 
 (function($) {
   // register namespace
@@ -17,7 +15,6 @@ import {Buffer} from 'buffer';
         'Checkmark': CheckmarkFormatter,
         'Text': TextFormatter,
         'Binary': BinaryFormatter,
-        'EWKB': EWKBFormatter,
       },
     },
   });
@@ -112,41 +109,6 @@ import {Buffer} from 'buffer';
       return data;
     } else {
       return '<span class=\'pull-left disabled_cell\'>[' + _.escape(value) + ']</span>';
-    }
-  }
-
-  function EWKBFormatter(row, cell, value, columnDef, dataContext) {
-    // If column has default value, set placeholder
-    var data = NullAndDefaultFormatter(row, cell, value, columnDef, dataContext);
-    if (data) {
-      return data;
-    } else {
-      let geometry;
-      try {
-        let buffer = new Buffer(value, 'hex');
-        geometry = Geometry.parse(buffer);
-      } catch (e) {
-        //unsupported geometry type
-        return '<button title="Can not render geometry of this type" class="btn-xs btn-default btn-ewkb-viewer disabled">' +
-          '<i class="fa fa-eye-slash" aria-hidden="true"></i>' +
-          '</button>' +
-          _.escape(value);
-      }
-
-      if (geometry.hasZ) {
-        //the viewer can not render 3d geometry
-        return '<button title="Can not render 3d geometry" class="btn-xs btn-default btn-ewkb-viewer disabled">' +
-          '<i class="fa fa-eye-slash" aria-hidden="true"></i>' +
-          '</button>' +
-          _.escape(value);
-      }
-      else {
-        return '<button title="View geometry" class="btn-xs btn-default btn-ewkb-viewer btn-view-ewkb-enabled">' +
-          '<i class="fa fa-eye" aria-hidden="true"></i>' +
-          '</button>' +
-          _.escape(value);
-      }
-
     }
   }
 })(window.jQuery);

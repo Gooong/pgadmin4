@@ -733,10 +733,6 @@ define('tools.querytool', [
         } else if (c.cell == 'geometry' || c.cell == 'geography'){
           // increase width to add 'view' button
           options['width'] += 28;
-          options['editor'] = is_editable ? Slick.Editors.pgText :
-            Slick.Editors.ReadOnlypgText;
-          // EWKB formatter for viewing geometry data.
-          options['formatter'] =  Slick.Formatters.EWKB;
         }
         else {
           options['editor'] = is_editable ? Slick.Editors.pgText :
@@ -825,16 +821,12 @@ define('tools.querytool', [
         let columnIndex = columns.indexOf(args.column);
         let command = args.command;
         if (command === 'view-all-geometries') {
-          if (self.handler.has_more_rows) {
-            // fetch all the data before rendering geometries in the column.
-            self.fetch_next_all(function () {
-              let items = args.grid.getData().getItems();
-              GeometryViewer.render_geometry(items, columns, columnIndex);
-            });
-          } else {
-            let items = args.grid.getData().getItems();
-            GeometryViewer.render_geometry(items, columns, columnIndex);
-          }
+          let items = args.grid.getData().getItems();
+          let rows = args.grid.getSelectedRows();
+          let selectedItems = _.map(rows, function (row) {
+            return items[row];
+          });
+          GeometryViewer.render_geometry(selectedItems, columns, columnIndex);
         }
       });
       grid.registerPlugin(headerButtonsPlugin);
@@ -862,16 +854,6 @@ define('tools.querytool', [
         editor_data.selection.onSelectedRangesChanged.subscribe(
           setStagedRows.bind(editor_data));
       }
-
-      // listen for 'view geometry' button click event in datagrid
-      grid.onClick.subscribe(function (e, args) {
-        if ($(e.target).hasClass('btn-view-ewkb-enabled') || $(e.target).parent().hasClass('btn-view-ewkb-enabled')) {
-          var item = dataView.getItem(args.row);
-          var columns = grid.getColumns();
-          var columnIndex = args.cell;
-          GeometryViewer.render_geometry(item, columns, columnIndex);
-        }
-      });
 
       grid.onColumnsResized.subscribe(function() {
         var columns = this.getColumns();
