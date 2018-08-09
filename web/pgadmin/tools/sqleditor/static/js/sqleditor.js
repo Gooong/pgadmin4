@@ -731,6 +731,8 @@ define('tools.querytool', [
           // We do not support editing binary data in SQL editor and data grid.
           options['formatter'] = Slick.Formatters.Binary;
         } else if (c.cell == 'geometry' || c.cell == 'geography'){
+          // increase width to add 'view' button
+          options['width'] += 28;
           options['editor'] = is_editable ? Slick.Editors.pgText :
             Slick.Editors.ReadOnlypgText;
           // EWKB formatter for viewing geometry data.
@@ -822,14 +824,14 @@ define('tools.querytool', [
         let columns = args.grid.getColumns();
         let columnIndex = columns.indexOf(args.column);
         let command = args.command;
-        if(command === 'view-all-geometries'){
-          if (self.handler.has_more_rows){
-          // fetch all the data before rendering geometries in the column.
+        if (command === 'view-all-geometries') {
+          if (self.handler.has_more_rows) {
+            // fetch all the data before rendering geometries in the column.
             self.fetch_next_all(function () {
               let items = args.grid.getData().getItems();
               GeometryViewer.render_geometry(items, columns, columnIndex);
             });
-          }else{
+          } else {
             let items = args.grid.getData().getItems();
             GeometryViewer.render_geometry(items, columns, columnIndex);
           }
@@ -2428,9 +2430,11 @@ define('tools.querytool', [
             col_cell = 'binary';
             break;
           case 'geometry':
+            // PostGIS geometry type
             col_cell = 'geometry';
             break;
           case 'geography':
+            // PostGIS geography type
             col_cell = 'geography';
             break;
           default:
