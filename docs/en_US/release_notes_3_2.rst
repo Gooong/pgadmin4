@@ -2,7 +2,7 @@
 Version 3.2
 ***********
 
-Release date: 2018-??-??
+Release date: 2018-08-09
 
 This release contains a number of features and fixes reported since the release of pgAdmin4 3.1
 
@@ -10,6 +10,7 @@ This release contains a number of features and fixes reported since the release 
 Features
 ********
 
+| `Feature #2136 <https://redmine.postgresql.org/issues/2136>`_ - Added version number for URL's to ensure that files are only cached on a per-version basis.
 | `Feature #2214 <https://redmine.postgresql.org/issues/2214>`_ - Add support for SCRAM password changes (requires psycopg2 >= 2.8).
 | `Feature #3074 <https://redmine.postgresql.org/issues/3074>`_ - Add support for reset saved password.
 | `Feature #3397 <https://redmine.postgresql.org/issues/3397>`_ - Add support for Trigger and JIT stats in the graphical query plan viewer.
@@ -32,6 +33,9 @@ Bug fixes
 | `Bug #3446 <https://redmine.postgresql.org/issues/3446>`_ - Various procedure/function related fixes for EPAS/PG 11.
 | `Bug #3448 <https://redmine.postgresql.org/issues/3448>`_ - Exclude system columns in Import/Export.
 | `Bug #3457 <https://redmine.postgresql.org/issues/3457>`_ - Fix debugging of procedures in EPAS packages.
+| `Bug #3458 <https://redmine.postgresql.org/issues/3458>`_ - pgAdmin4 should work with python 3.7.
 | `Bug #3468 <https://redmine.postgresql.org/issues/3468>`_ - Support SSH tunneling with keys that don't have a passphrase.
 | `Bug #3471 <https://redmine.postgresql.org/issues/3471>`_ - Ensure the SSH tunnel port number is honoured.
+| `Bug #3511 <https://redmine.postgresql.org/issues/3511>`_ - Add support to save and clear SSH Tunnel password.
+| `Bug #3526 <https://redmine.postgresql.org/issues/3526>`_ - COST statement should not be automatically duplicated after creating trigger function.
 | `Bug #3527 <https://redmine.postgresql.org/issues/3527>`_ - View Data->Filtered Rows dialog should be displayed.
