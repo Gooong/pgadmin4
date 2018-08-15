@@ -20,6 +20,7 @@ function BuildGeometryViewerDialog() {
       let divContainer;
       let vectorLayer,
         baseLayers,
+        defaultBaseLayer,
         lmap,
         infoControl,
         layerControl;
@@ -46,29 +47,32 @@ function BuildGeometryViewerDialog() {
           vectorLayer.clearLayers();
           divContainer.removeClass('ewkb-viewer-container-plain-background');
           layerControl.remove();
+          _.each(baseLayers, function (layer) {
+            if(lmap.hasLayer(layer)){
+              defaultBaseLayer = layer;
+              layer.remove();
+            }
+          });
 
-          if (infoContent.length > 0) {
-            let content = infoContent.join('<br/>');
-            infoControl.addTo(lmap);
-            infoControl.update(content);
-          }
-
+          let isEmpty = false;
           if (geoJSONs.length === 0) {
-            lmap.setView([0, 0], 0);
-            return;
+            isEmpty = true;
           }
 
           try {
             vectorLayer.addData(geoJSONs);
           } catch (e) {
             // Invalid LatLng object: (NaN, NaN)
-            lmap.setView([0, 0], 0);
-            return;
+            isEmpty = true;
           }
 
           let bounds = vectorLayer.getBounds();
           if (!bounds.isValid()) {
-            lmap.setView([0, 0], 0);
+            isEmpty = true;
+          }
+
+          if (isEmpty){
+            lmap.setView([0,0],0);
             return;
           }
 
@@ -81,11 +85,18 @@ function BuildGeometryViewerDialog() {
             vectorLayer.eachLayer(addPopup);
           }
 
+          if (infoContent.length > 0) {
+            let content = infoContent.join('<br/>');
+            infoControl.addTo(lmap);
+            infoControl.update(content);
+          }
+
           bounds = bounds.pad(0.1);
           let maxLength = Math.max(bounds.getNorth() - bounds.getSouth(),
             bounds.getEast() - bounds.getWest());
           if (SRID === 4326) {
             divContainer.addClass('ewkb-viewer-container-plain-background');
+            lmap.addLayer(defaultBaseLayer);
             lmap.options.crs = L.CRS.EPSG3857;
             lmap.setMinZoom(0);
             layerControl.addTo(lmap);
@@ -113,6 +124,7 @@ function BuildGeometryViewerDialog() {
               closable: true,
               maximizable: true,
               resizable: true,
+              autoReset: false,
               modal: false,
               pinnable: false,
               padding: false,
@@ -136,7 +148,7 @@ function BuildGeometryViewerDialog() {
           });
           vectorLayer.addTo(lmap);
 
-          baseLayers = {
+          let baseLayersObj = {
             'Empty': L.tileLayer(''),
             'Street': L.tileLayer.provider('OpenStreetMap.Mapnik'),
             'Topography': L.tileLayer.provider('OpenTopoMap'),
@@ -144,9 +156,9 @@ function BuildGeometryViewerDialog() {
             'Light Color': L.tileLayer.provider('CartoDB.Voyager'),
             'Dark Matter': L.tileLayer.provider('CartoDB.DarkMatter'),
           };
-          layerControl = L.control.layers(baseLayers);
-          // add OpenStreetMap layer by default
-          baseLayers.Street.addTo(lmap);
+          layerControl = L.control.layers(baseLayersObj);
+          defaultBaseLayer = baseLayersObj.Street;
+          baseLayers = _.values(baseLayersObj);
 
           infoControl = L.control({
             position: 'topright',
