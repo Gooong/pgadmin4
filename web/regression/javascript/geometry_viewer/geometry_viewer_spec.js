@@ -52,8 +52,10 @@ describe('geometry viewer test', function () {
     let renderGeometry = GeometryViewer.render_geometry;
     beforeEach(function () {
       BuildGeometryViewerDialog();
-      spyOn(Alertify, 'mapDialog').and.callFake(function (items) {
-        return items.length;
+      spyOn(Alertify, 'mapDialog').and.callFake(function () {
+        return {
+          'resizeTo': function(){},
+        };
       });
     });
 
