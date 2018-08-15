@@ -97,16 +97,21 @@ To commit the changes to the server, select the *Save* toolbar button.  Modifica
 
 **Geometry Data Viewer**
 
-If with PostGIS installed, you can view GIS objects directly in a map by clicking the 'View Geometry' button in the table:
+If with PostGIS installed, you can view GIS objects in a map by selecting row(s) and clicking the 'View Geometry' button in the table:
 
 .. image:: images/geometry_viewer.png
-    :alt: Geometry Viewer
+    :alt: Geometry Viewer Button
 
-To view individual geometry, click corresponding button in the cell. To view all the geometries in the same map, click 'view' button in the column.
+You can also view the properties of the geometries directly in the geometry viewer by clicking the specific geometry:
 
-- *Supported geometry type:* Geometry Viewer support 2d and 3dm geometries in EWKB format including `Point, LineString, Polygon MultiPoint, MultiLineString, MultiPolygon and GeometryCollection`.
+.. image:: images/geometry_viewer_property_table.png
+    :alt: Geometry Viewer Property Table
 
-- *About SRID:* If there are geometries with different SRIDs in the same column, the viewer will render geometries with the same SRID in the map. If SRID=4326 the OSM tile layer will be added in the map.
+Below are the default strategies for parsing data:
+
+- *Supported data type:* Geometry Viewer support 2d and 3dm geometries in EWKB format including `Point, LineString, Polygon MultiPoint, MultiLineString, MultiPolygon and GeometryCollection`.
+
+- *About SRID:* If there are geometries with different SRIDs in the same column, the viewer will render geometries with the same SRID in the map. If SRID=4326 the OSM tile layer will be added into the map.
 
 - *About data size:* For performance considerations, the viewer will render geometries no more than 100000, totaling up to 20MB.
 
