@@ -19,7 +19,6 @@ function BuildGeometryViewerDialog() {
 
       let divContainer;
       let vectorLayer,
-        //osmLayer,
         baseLayers,
         lmap,
         infoControl,
@@ -41,6 +40,12 @@ function BuildGeometryViewerDialog() {
 
       return {
         main: function (geoJSONs, SRID, getPopupContent, infoContent = []) {
+          //reset map
+          lmap.closePopup();
+          infoControl.remove();
+          vectorLayer.clearLayers();
+          divContainer.removeClass('ewkb-viewer-container-plain-background');
+          layerControl.remove();
 
           if (infoContent.length > 0) {
             let content = infoContent.join('<br/>');
@@ -106,9 +111,10 @@ function BuildGeometryViewerDialog() {
           return {
             options: {
               closable: true,
-              closableByDimmer: true,
-              maximizable: false,
-              frameless: true,
+              maximizable: true,
+              resizable: true,
+              modal: false,
+              pinnable: false,
               padding: false,
               overflow: false,
               title: gettext('Geometry Viewer'),
@@ -117,9 +123,6 @@ function BuildGeometryViewerDialog() {
         },
 
         build: function () {
-          //hide close button
-          this.elements.commands.close.style = 'visibility:hidden';
-
           divContainer = $('<div class="ewkb-viewer-container"></div>');
           this.elements.content.appendChild(divContainer.get(0));
           lmap = L.map(divContainer.get(0), {
@@ -156,32 +159,21 @@ function BuildGeometryViewerDialog() {
             this._div.innerHTML = content;
           };
 
-          //Alertify.pgDialogBuild.apply(this);
-          this.set('onresized', function () {
+          Alertify.pgDialogBuild.apply(this);
+
+          let resizeMap = function () {
             setTimeout(function () {
               lmap.invalidateSize();
-            }, 50);
+            }, 10);
+          };
+          this.set({
+            'onresized': resizeMap,
+            'onmaximized': resizeMap,
+            'onrestored': resizeMap,
           });
-
-          this.elements.dialog.style.maxWidth = 'unset';
-          this.elements.dialog.style.minWidth = 'unset';
-          this.elements.dialog.style.maxHeight = 'unset';
-          this.elements.dialog.style.minHeight = 'unset';
-        },
-
-        hooks: {
-          onshow: function () {
-            lmap.invalidateSize();
-          },
-
-          onclose: function () {
-            //reset map
-            lmap.closePopup();
-            infoControl.remove();
-            vectorLayer.clearLayers();
-            divContainer.removeClass('ewkb-viewer-container-plain-background');
-            layerControl.remove();
-          },
+          //hide footer
+          this.elements.content.style = 'top: 35px; bottom: 0';
+          this.elements.footer.style = 'visibility: hidden';
         },
       };
     });
