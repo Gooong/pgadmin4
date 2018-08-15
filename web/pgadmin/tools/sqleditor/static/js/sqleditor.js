@@ -730,11 +730,10 @@ define('tools.querytool', [
         } else if (c.cell == 'binary') {
           // We do not support editing binary data in SQL editor and data grid.
           options['formatter'] = Slick.Formatters.Binary;
-        } else if (c.cell == 'geometry' || c.cell == 'geography'){
+        } else if (c.cell == 'geometry' || c.cell == 'geography') {
           // increase width to add 'view' button
           options['width'] += 28;
-        }
-        else {
+        } else {
           options['editor'] = is_editable ? Slick.Editors.pgText :
             Slick.Editors.ReadOnlypgText;
           options['formatter'] = Slick.Formatters.Text;
@@ -748,7 +747,7 @@ define('tools.querytool', [
 
       // add 'view' button in geometry and geography type column header
       _.each(grid_columns, function (c) {
-        if(c.column_type_internal == 'geometry' || c.column_type_internal == 'geography'){
+        if (c.column_type_internal == 'geometry' || c.column_type_internal == 'geography') {
           GeometryViewer.add_header_button(c);
         }
       });

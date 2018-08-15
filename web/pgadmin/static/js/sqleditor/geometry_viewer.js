@@ -95,21 +95,19 @@ function renderGeometry(items, columns, columnIndex) {
   });
 
   // generate map info content
-  {
-    if (tooLargeDataSize || tooManyGeometris) {
-      infoContent.push(supportedGeometries.length + ' geometries rendered' +
-        '<i class="fa fa-question-circle" title="Due to performance limitations, the extra geometries are not rendered" aria-hidden="true"></i>');
-    }
-    if (geometries3D.length > 0) {
-      infoContent.push(gettext('3D geometries not rendered.'));
-    }
-    if (unsupportedItems.length > 0) {
-      infoContent.push(gettext('Unsupported geometries not rendered.'));
-    }
+  if (tooLargeDataSize || tooManyGeometris) {
+    infoContent.push(supportedGeometries.length + ' geometries rendered' +
+      '<i class="fa fa-question-circle" title="Due to performance limitations, the extra geometries are not rendered" aria-hidden="true"></i>');
+  }
+  if (geometries3D.length > 0) {
+    infoContent.push(gettext('3D geometries not rendered.'));
+  }
+  if (unsupportedItems.length > 0) {
+    infoContent.push(gettext('Unsupported geometries not rendered.'));
   }
 
   if (supportedGeometries.length === 0) {
-    Alertify.mapDialog([], 0, undefined, infoContent);
+    Alertify.mapDialog([], 0, undefined, infoContent).resizeTo('80%', '60%');
     return;
   }
 

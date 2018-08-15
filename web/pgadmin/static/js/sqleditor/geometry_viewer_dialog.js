@@ -48,7 +48,7 @@ function BuildGeometryViewerDialog() {
           divContainer.removeClass('ewkb-viewer-container-plain-background');
           layerControl.remove();
           _.each(baseLayers, function (layer) {
-            if(lmap.hasLayer(layer)){
+            if (lmap.hasLayer(layer)) {
               defaultBaseLayer = layer;
               layer.remove();
             }
@@ -71,8 +71,8 @@ function BuildGeometryViewerDialog() {
             isEmpty = true;
           }
 
-          if (isEmpty){
-            lmap.setView([0,0],0);
+          if (isEmpty) {
+            lmap.setView([0, 0], 0);
             return;
           }
 
