@@ -97,12 +97,12 @@ To commit the changes to the server, select the *Save* toolbar button.  Modifica
 
 **Geometry Data Viewer**
 
-If with PostGIS installed, you can view GIS objects in a map by selecting row(s) and clicking the 'View Geometry' button in the table:
+If with PostGIS installed, you can view GIS objects in a map by selecting row(s) and clicking the 'View Geometry' button in the table. If no rows are selected, it will load and render all the rows:
 
 .. image:: images/geometry_viewer.png
     :alt: Geometry Viewer Button
 
-You can also view the properties of the geometries directly in the geometry viewer by clicking the specific geometry:
+You can adjust the layout by dragging the title of the panel. To view the properties of the geometries directly in map, just click the specific geometry:
 
 .. image:: images/geometry_viewer_property_table.png
     :alt: Geometry Viewer Property Table
