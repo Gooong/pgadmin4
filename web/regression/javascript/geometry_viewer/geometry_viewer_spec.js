@@ -7,19 +7,9 @@
 //
 //////////////////////////////////////////////////////////////
 
-import Alertify from 'pgadmin.alertifyjs';
 import GeometryViewer from 'sources/sqleditor/geometry_viewer';
-import BuildGeometryViewerDialog from 'sources/sqleditor/geometry_viewer_dialog';
 
 describe('geometry viewer test', function () {
-  describe('geometry viewer dialog test', function () {
-    it('should create dialog', function () {
-      expect(Alertify.mapDialog).toBeUndefined();
-      BuildGeometryViewerDialog();
-      expect(Alertify.mapDialog).toBeDefined();
-    });
-
-  });
 
   describe('geometry viewer add header button test', function () {
     let add_button = GeometryViewer.add_header_button;
@@ -49,46 +39,6 @@ describe('geometry viewer test', function () {
   });
 
   describe('geometry viewer rener geometry test', function () {
-    let renderGeometry = GeometryViewer.render_geometry;
-    beforeEach(function () {
-      BuildGeometryViewerDialog();
-      spyOn(Alertify, 'mapDialog').and.callFake(function () {
-        return {
-          'resizeTo': function(){},
-        };
-      });
-    });
-
-    it('should parse item correctly', function () {
-      // POINT(0 0)
-      let ewkb = '010100000000000000000000000000000000000000';
-      let item = {
-        id: 1,
-        geom: ewkb,
-      };
-      let columns = [
-        {
-          column_type_internal: 'geometry',
-          field: 'geom',
-        },
-      ];
-      let columnIndex = 0;
-      renderGeometry(item, columns, columnIndex);
-      expect(Alertify.mapDialog).toHaveBeenCalledTimes(1);
-    });
-
-    it('should not alert dialog', function () {
-      let columns = [
-        {
-          column_type_internal: 'geometry',
-          field: 'geom',
-        },
-      ];
-      let columnIndex = 0;
-      renderGeometry(undefined, columns, columnIndex);
-      expect(Alertify.mapDialog).not.toHaveBeenCalled();
-    });
-
 
     it('should group geometry by srid', function () {
       // POINT(0 0)
@@ -112,8 +62,8 @@ describe('geometry viewer test', function () {
         },
       ];
       let columnIndex = 0;
-      renderGeometry(items, columns, columnIndex);
-      expect(Alertify.mapDialog.calls.mostRecent().args[0].length).toBe(2);
+      let result = GeometryViewer.parse_data(items, columns, columnIndex);
+      expect(result.geoJSONs.length).toBe(2);
     });
 
 
@@ -133,8 +83,8 @@ describe('geometry viewer test', function () {
         },
       ];
       let columnIndex = 0;
-      renderGeometry(items, columns, columnIndex);
-      expect(Alertify.mapDialog.calls.mostRecent().args[0].length).toBe(1);
+      let result = GeometryViewer.parse_data(items, columns, columnIndex);
+      expect(result.geoJSONs.length).toBe(1);
     });
 
     it('should support geometry M', function () {
@@ -153,8 +103,8 @@ describe('geometry viewer test', function () {
         },
       ];
       let columnIndex = 0;
-      renderGeometry(items, columns, columnIndex);
-      expect(Alertify.mapDialog.calls.mostRecent().args[0].length).toBe(1);
+      let result = GeometryViewer.parse_data(items, columns, columnIndex);
+      expect(result.geoJSONs.length).toBe(1);
     });
 
     it('should support empty geometry', function () {
@@ -171,8 +121,8 @@ describe('geometry viewer test', function () {
         },
       ];
       let columnIndex = 0;
-      renderGeometry(items, columns, columnIndex);
-      expect(Alertify.mapDialog.calls.mostRecent().args[0].length).toBe(1);
+      let result = GeometryViewer.parse_data(items, columns, columnIndex);
+      expect(result.geoJSONs.length).toBe(1);
     });
 
 
@@ -202,8 +152,8 @@ describe('geometry viewer test', function () {
         },
       ];
       let columnIndex = 0;
-      renderGeometry(items, columns, columnIndex);
-      expect(Alertify.mapDialog.calls.mostRecent().args[0].length).toBe(2);
+      let result = GeometryViewer.parse_data(items, columns, columnIndex);
+      expect(result.geoJSONs.length).toBe(2);
     });
 
 
@@ -221,8 +171,8 @@ describe('geometry viewer test', function () {
         },
       ];
       let columnIndex = 0;
-      renderGeometry(items, columns, columnIndex);
-      expect(Alertify.mapDialog.calls.mostRecent().args[0].length).toBe(0);
+      let result = GeometryViewer.parse_data(items, columns, columnIndex);
+      expect(result.geoJSONs.length).toBe(0);
     });
 
     it('should not support 3DM geometry', function () {
@@ -240,8 +190,8 @@ describe('geometry viewer test', function () {
         },
       ];
       let columnIndex = 0;
-      renderGeometry(items, columns, columnIndex);
-      expect(Alertify.mapDialog.calls.mostRecent().args[0].length).toBe(0);
+      let result = GeometryViewer.parse_data(items, columns, columnIndex);
+      expect(result.geoJSONs.length).toBe(0);
     });
 
     it('should not support TRIANGLE geometry', function () {
@@ -260,8 +210,8 @@ describe('geometry viewer test', function () {
         },
       ];
       let columnIndex = 0;
-      renderGeometry(items, columns, columnIndex);
-      expect(Alertify.mapDialog.calls.mostRecent().args[0].length).toBe(0);
+      let result = GeometryViewer.parse_data(items, columns, columnIndex);
+      expect(result.geoJSONs.length).toBe(0);
     });
 
     it('should limit data size', function () {
@@ -282,8 +232,8 @@ describe('geometry viewer test', function () {
         },
       ];
       let columnIndex = 0;
-      renderGeometry(items, columns, columnIndex);
-      expect(Alertify.mapDialog.calls.mostRecent().args[0].length).toBeLessThan(600000);
+      let result = GeometryViewer.parse_data(items, columns, columnIndex);
+      expect(result.geoJSONs.length).toBeLessThan(600000);
     });
   });
 });
