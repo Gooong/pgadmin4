@@ -75,7 +75,6 @@
     "jquery-contextmenu": "^2.6.4",
     "jquery-ui": "^1.12.1",
     "leaflet": "^1.3.3",
-    "leaflet-providers": "^1.3.1",
     "moment": "^2.20.1",
     "mousetrap": "^1.6.1",
     "prop-types": "^15.5.10",

@@ -45,7 +45,7 @@ function BuildGeometryViewerDialog() {
           lmap.closePopup();
           infoControl.remove();
           vectorLayer.clearLayers();
-          divContainer.removeClass('ewkb-viewer-container-plain-background');
+          divContainer.removeClass('geometry-viewer-container-plain-background');
           layerControl.remove();
           _.each(baseLayers, function (layer) {
             if (lmap.hasLayer(layer)) {
@@ -95,7 +95,7 @@ function BuildGeometryViewerDialog() {
           let maxLength = Math.max(bounds.getNorth() - bounds.getSouth(),
             bounds.getEast() - bounds.getWest());
           if (SRID === 4326) {
-            divContainer.addClass('ewkb-viewer-container-plain-background');
+            divContainer.addClass('geometry-viewer-container-plain-background');
             lmap.addLayer(defaultBaseLayer);
             lmap.options.crs = L.CRS.EPSG3857;
             lmap.setMinZoom(0);

@@ -269,12 +269,23 @@ define('tools.querytool', [
         content: '<div id ="notification_grid" class="sql-editor-notifications" tabindex: "0"></div>',
       });
 
+      var geometry_viewer = new pgAdmin.Browser.Panel({
+        name: 'geometry_viewer',
+        title: gettext('Geometry Viewer'),
+        width: '50%',
+        height: '100%',
+        isCloseable: true,
+        isPrivate: true,
+        content: '<div id ="geometry_viewer_panel" class="sql-editor-geometry-viewer" tabindex: "0"></div>',
+      });
+
       // Load all the created panels
       data_output.load(main_docker);
       explain.load(main_docker);
       messages.load(main_docker);
       history.load(main_docker);
       notifications.load(main_docker);
+      geometry_viewer.load(main_docker);
 
       // Add all the panels to the docker
       self.data_output_panel = main_docker.addPanel('data_output', wcDocker.DOCK.BOTTOM, sql_panel_obj);
@@ -816,16 +827,33 @@ define('tools.querytool', [
       grid.registerPlugin(gridSelector);
       var headerButtonsPlugin = new Slick.Plugins.HeaderButtons();
       headerButtonsPlugin.onCommand.subscribe(function (e, args) {
-        let columns = args.grid.getColumns();
-        let columnIndex = columns.indexOf(args.column);
         let command = args.command;
-        if (command === 'view-all-geometries') {
-          let items = args.grid.getData().getItems();
-          let rows = args.grid.getSelectedRows();
-          let selectedItems = _.map(rows, function (row) {
-            return items[row];
-          });
-          GeometryViewer.render_geometry(selectedItems, columns, columnIndex);
+        if (command === 'view-geometries') {
+          let columns = args.grid.getColumns();
+          let columnIndex = columns.indexOf(args.column);
+          let selectedRows = args.grid.getSelectedRows();
+          if (selectedRows.length === 0) {
+            // if no rows are selected, render all the rows
+            if (self.handler.has_more_rows) {
+              // fetch all the data before rendering geometries in the column.
+              self.fetch_next_all(function () {
+                let items = args.grid.getData().getItems();
+                GeometryViewer.render_geometries(self.handler, items, columns, columnIndex);
+              });
+            } else {
+              let items = args.grid.getData().getItems();
+              GeometryViewer.render_geometries(self.handler, items, columns, columnIndex);
+            }
+          } else {
+            // render selected rows
+            let items = args.grid.getData().getItems();
+            let selectedItems = _.map(selectedRows, function (row) {
+              return items[row];
+            });
+            GeometryViewer.render_geometries(self.handler, selectedItems, columns, columnIndex);
+          }
+
+
         }
       });
       grid.registerPlugin(headerButtonsPlugin);
