@@ -218,7 +218,7 @@ define('tools.querytool', [
         }, 200);
       });
 
-      // Create panels for 'Data Output', 'Explain', 'Messages' and 'History'
+      // Create panels for 'Data Output', 'Explain', 'Messages', 'History' and 'Geometry Viewer'
       var data_output = new pgAdmin.Browser.Panel({
         name: 'data_output',
         title: gettext('Data Output'),
@@ -854,8 +854,6 @@ define('tools.querytool', [
             });
             GeometryViewer.render_geometries(self.handler, selectedItems, columns, columnIndex);
           }
-
-
         }
       });
       grid.registerPlugin(headerButtonsPlugin);
