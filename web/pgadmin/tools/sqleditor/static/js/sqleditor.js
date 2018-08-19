@@ -833,14 +833,16 @@ define('tools.querytool', [
           let columnIndex = columns.indexOf(args.column);
           let selectedRows = args.grid.getSelectedRows();
           if (selectedRows.length === 0) {
-            // if no rows are selected, render all the rows
+            // if no rows are selected, load and render all the rows
             if (self.handler.has_more_rows) {
-              // fetch all the data before rendering geometries in the column.
               self.fetch_next_all(function () {
+                // trigger onGridSelectAll manually with new event data.
+                gridSelector.onGridSelectAll.notify(args, new Slick.EventData());
                 let items = args.grid.getData().getItems();
                 GeometryViewer.render_geometries(self.handler, items, columns, columnIndex);
               });
             } else {
+              gridSelector.onGridSelectAll.notify(args, new Slick.EventData());
               let items = args.grid.getData().getItems();
               GeometryViewer.render_geometries(self.handler, items, columns, columnIndex);
             }

@@ -14,28 +14,26 @@ import L from 'leaflet';
 import $ from 'jquery';
 
 let GeometryViewer = {
-  'panel_state': {
-    closed: true,
-  },
+  panel_closed: true,
 
-  'render_geometries': function (handler, items, columns, columnIndex) {
+  render_geometries: function (handler, items, columns, columnIndex) {
     let self = this;
     if (!self.map_component) {
       self.map_component = initMapComponent();
     }
 
-    if (self.panel_state.closed) {
+    if (self.panel_closed) {
       let wcDocker = window.wcDocker;
       let geometry_viewer_panel = handler.gridView.geometry_viewer =
         handler.gridView.docker.addPanel('geometry_viewer',
           wcDocker.DOCK.RIGHT, handler.gridView.data_output_panel);
       $('#geometry_viewer_panel')[0].appendChild(self.map_component.mapContainer.get(0));
-      self.panel_state.closed = false;
+      self.panel_closed = false;
 
       geometry_viewer_panel.on(wcDocker.EVENT.CLOSED, function () {
         $('#geometry_viewer_panel').empty();
-        self.map_component.resetMap();
-        self.panel_state.closed = true;
+        self.map_component.clearMap();
+        self.panel_closed = true;
       });
 
       geometry_viewer_panel.on(wcDocker.EVENT.RESIZE_ENDED, function () {
@@ -49,16 +47,15 @@ let GeometryViewer = {
           self.map_component.resizeMap();
         }
       });
-
     }
-    handler.gridView.geometry_viewer.focus();
 
+    handler.gridView.geometry_viewer.focus();
+    self.map_component.clearMap();
     let dataObj = parseData(items, columns, columnIndex);
-    self.map_component.resetMap();
     self.map_component.renderMap(dataObj);
   },
 
-  'add_header_button': function (columnDefinition) {
+  add_header_button: function (columnDefinition) {
     if (columnDefinition.column_type_internal === 'geometry' ||
       columnDefinition.column_type_internal === 'geography') {
       columnDefinition.header = {
@@ -74,6 +71,8 @@ let GeometryViewer = {
       };
     }
   },
+
+  parse_data: parseData,
 };
 
 function initMapComponent() {
@@ -88,13 +87,13 @@ function initMapComponent() {
     closeButton: false,
     minWidth: 260,
     maxWidth: 300,
-    maxHeight: 320,
+    maxHeight: 300,
   };
 
   let mapContainer = $('<div class="geometry-viewer-container"></div>');
   let lmap = L.map(mapContainer.get(0), {
     preferCanvas: true,
-  });
+  }).setZoom(0);
 
   // update default attribution
   lmap.attributionControl.setPrefix('<a href="http://leafletjs.com" target="_blank" title="A JS library for interactive maps">Leaflet</a>');
@@ -147,9 +146,7 @@ function initMapComponent() {
   let defaultBaseLayer = baseLayersObj.Street;
   let baseLayers = _.values(baseLayersObj);
 
-  let infoControl = L.control({
-    position: 'topright',
-  });
+  let infoControl = L.control({position: 'topright'});
   infoControl.onAdd = function () {
     this._div = L.DomUtil.create('div', 'geometry-viewer-info-control');
     return this._div;
@@ -158,25 +155,19 @@ function initMapComponent() {
     this._div.innerHTML = content;
   };
 
-  return {
-    'mapContainer': mapContainer,
-    'lmap': lmap,
-    'vectorLayer': vectorLayer,
-    'layerControl': layerControl,
-    'defaultBaseLayer': defaultBaseLayer,
-    'baseLayers': baseLayers,
-    'infoControl': infoControl,
+  let setEPSG3857 = function () {
+    if (lmap.options.crs !== L.CRS.EPSG3857) {
+      lmap.options.crs = L.CRS.EPSG3857;
+      layerControl.addTo(lmap);
+      lmap.addLayer(defaultBaseLayer);
+      mapContainer.addClass('geometry-viewer-container-plain-background');
+      lmap.setMinZoom(0);
+    }
+  };
 
-    'geojsonMarkerOptions': geojsonMarkerOptions,
-    'geojsonStyle': geojsonStyle,
-    'popupOption': popupOption,
-
-    'resetMap': function () {
-      //reset map
-      lmap.closePopup();
-      infoControl.remove();
-      vectorLayer.clearLayers();
-      mapContainer.removeClass('geometry-viewer-container-plain-background');
+  let setSimpleCRS = function () {
+    if (lmap.options.crs !== L.CRS.Simple) {
+      lmap.options.crs = L.CRS.Simple;
       layerControl.remove();
       _.each(baseLayers, function (layer) {
         if (lmap.hasLayer(layer)) {
@@ -184,13 +175,26 @@ function initMapComponent() {
           layer.remove();
         }
       });
+      mapContainer.removeClass('geometry-viewer-container-plain-background');
+    }
+  };
+
+  setSimpleCRS();
+  setEPSG3857();
+
+  return {
+    'mapContainer': mapContainer,
+    'clearMap': function () {
+      lmap.closePopup();
+      infoControl.remove();
+      vectorLayer.clearLayers();
     },
 
     'renderMap': function (dataObj) {
       let geoJSONs = dataObj.geoJSONs,
         SRID = dataObj.selectedSRID,
         getPopupContent = dataObj.getPopupContent,
-        infoContent = dataObj.infoContent;
+        infoList = dataObj.infoList;
 
       let isEmpty = false;
       if (geoJSONs.length === 0) {
@@ -201,6 +205,7 @@ function initMapComponent() {
         vectorLayer.addData(geoJSONs);
       } catch (e) {
         // Invalid LatLng object: (NaN, NaN)
+        infoList.push('An error occurred while rendering data.');
         isEmpty = true;
       }
 
@@ -209,8 +214,21 @@ function initMapComponent() {
         isEmpty = true;
       }
 
+      if (infoList.length > 0) {
+        if (lmap.options.crs === L.CRS.EPSG3857) {
+          layerControl.remove();
+          infoControl.addTo(lmap);
+          layerControl.addTo(lmap);
+        } else {
+          infoControl.addTo(lmap);
+        }
+        let infoContent = generateInfoContent(infoList);
+        infoControl.update(infoContent);
+      }
+
       if (isEmpty) {
-        lmap.setView([0, 0], 0);
+        setSimpleCRS();
+        lmap.setView([0, 0], lmap.getZoom());
         return;
       }
 
@@ -223,23 +241,13 @@ function initMapComponent() {
         vectorLayer.eachLayer(addPopup);
       }
 
-      if (infoContent.length > 0) {
-        let content = infoContent.join('<br/>');
-        infoControl.addTo(lmap);
-        infoControl.update(content);
-      }
-
       bounds = bounds.pad(0.1);
       let maxLength = Math.max(bounds.getNorth() - bounds.getSouth(),
         bounds.getEast() - bounds.getWest());
       if (SRID === 4326) {
-        mapContainer.addClass('geometry-viewer-container-plain-background');
-        lmap.addLayer(defaultBaseLayer);
-        lmap.options.crs = L.CRS.EPSG3857;
-        lmap.setMinZoom(0);
-        layerControl.addTo(lmap);
+        setEPSG3857();
       } else {
-        lmap.options.crs = L.CRS.Simple;
+        setSimpleCRS();
         if (maxLength >= 180) {
           // calculate the min zoom level to enable the map to fit the whole geometry.
           let minZoom = Math.floor(Math.log2(360 / maxLength)) - 2;
@@ -252,15 +260,16 @@ function initMapComponent() {
       if (maxLength > 0) {
         lmap.fitBounds(bounds);
       } else {
-        lmap.setView(bounds.getCenter(), 5);
+        lmap.setView(bounds.getCenter(), lmap.getZoom());
       }
     },
 
     'resizeMap': function () {
       setTimeout(function () {
         lmap.invalidateSize();
-      }, 50);
+      }, 10);
     },
+
   };
 }
 
@@ -271,20 +280,20 @@ function parseData(items, columns, columnIndex) {
   let geometries3D = [],
     supportedGeometries = [],
     unsupportedItems = [],
-    infoContent = [],
+    infoList = [],
     geometryItemMap = new Map(),
     mixedSRID = false,
     geometryTotalByteLength = 0,
     tooLargeDataSize = false,
-    tooManyGeometris = false;
+    tooManyGeometries = false;
 
   if (items.length === 0) {
-    infoContent.push('Empty rows');
+    infoList.push('Empty row.');
     return {
       'geoJSONs': [],
       'selectedSRID': 0,
       'getPopupContent': undefined,
-      'infoContent': infoContent,
+      'infoList': infoList,
     };
   }
 
@@ -292,7 +301,7 @@ function parseData(items, columns, columnIndex) {
   _.every(items, function (item) {
     try {
       let value = item[field];
-      let buffer = new Buffer(value, 'hex');
+      let buffer = Buffer.from(value, 'hex');
       let geometry = Geometry.parse(buffer);
       if (geometry.hasZ) {
         geometries3D.push(geometry);
@@ -303,7 +312,7 @@ function parseData(items, columns, columnIndex) {
           return false;
         }
         if (supportedGeometries.length >= maxRenderGeometries) {
-          tooManyGeometris = true;
+          tooManyGeometries = true;
           return false;
         }
 
@@ -320,15 +329,14 @@ function parseData(items, columns, columnIndex) {
   });
 
   // generate map info content
-  if (tooLargeDataSize || tooManyGeometris) {
-    infoContent.push(supportedGeometries.length + ' geometries rendered' +
-      '<i class="fa fa-question-circle" title="Due to performance limitations, the extra geometries are not rendered" aria-hidden="true"></i>');
+  if (tooLargeDataSize || tooManyGeometries) {
+    infoList.push(supportedGeometries.length + ' of ' + items.length + ' geometries rendered.');
   }
   if (geometries3D.length > 0) {
-    infoContent.push(gettext('3D geometries not rendered.'));
+    infoList.push(gettext('3D geometries not rendered.'));
   }
   if (unsupportedItems.length > 0) {
-    infoContent.push(gettext('Unsupported geometries not rendered.'));
+    infoList.push(gettext('Unsupported geometries not rendered.'));
   }
 
   if (supportedGeometries.length === 0) {
@@ -336,7 +344,7 @@ function parseData(items, columns, columnIndex) {
       'geoJSONs': [],
       'selectedSRID': 0,
       'getPopupContent': undefined,
-      'infoContent': infoContent,
+      'infoList': infoList,
     };
   }
 
@@ -368,15 +376,14 @@ function parseData(items, columns, columnIndex) {
   }
 
   if (mixedSRID) {
-    infoContent.push(gettext('Geometries with non-SRID') + selectedSRID + ' not rendered.' +
-      '<i class="fa fa-question-circle" title="There are geometries with different SRIDs in this column." aria-hidden="true"></i>');
+    infoList.push(gettext('Geometries with non-SRID') + selectedSRID + ' not rendered.');
   }
 
   return {
     'geoJSONs': geoJSONs,
     'selectedSRID': selectedSRID,
     'getPopupContent': getPopupContent,
-    'infoContent': infoContent,
+    'infoList': infoList,
   };
 }
 
@@ -404,6 +411,11 @@ function itemToTable(item, columns, ignoredColumnIndex) {
   }
   content += '</tbody></table>';
   return content;
+}
+
+function generateInfoContent(infoList) {
+  let infoContent = infoList.join('<br>');
+  return infoContent;
 }
 
 module.exports = GeometryViewer;
