@@ -56,7 +56,6 @@ let GeometryViewer = {
   },
 
   add_header_button: function (columnDefinition) {
-    columnDefinition['width'] += 28;
     columnDefinition.header = {
       buttons: [
         {

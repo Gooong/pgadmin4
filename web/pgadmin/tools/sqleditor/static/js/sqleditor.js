@@ -758,8 +758,8 @@ define('tools.querytool', [
           // We do not support editing binary data in SQL editor and data grid.
           options['formatter'] = Slick.Formatters.Binary;
         } else if (c.cell == 'geometry' || c.cell == 'geography') {
-          // add 'view' button in geometry and geography type column header
-          GeometryViewer.add_header_button(c);
+          // increase width to add 'view' button
+          options['width'] += 28;
         } else {
           options['editor'] = is_editable ? Slick.Editors.pgText :
             Slick.Editors.ReadOnlypgText;
@@ -771,6 +771,13 @@ define('tools.querytool', [
 
       var gridSelector = new GridSelector();
       grid_columns = self.grid_columns = gridSelector.getColumnDefinitions(grid_columns);
+
+      // add 'view' button in geometry and geography type column header
+      _.each(grid_columns, function (c) {
+        if (c.column_type_internal == 'geometry' || c.column_type_internal == 'geography') {
+          GeometryViewer.add_header_button(c);
+        }
+      });
 
       if (rows_affected) {
         // calculate with for header row column.
