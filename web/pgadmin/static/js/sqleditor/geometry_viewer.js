@@ -56,20 +56,18 @@ let GeometryViewer = {
   },
 
   add_header_button: function (columnDefinition) {
-    if (columnDefinition.column_type_internal === 'geometry' ||
-      columnDefinition.column_type_internal === 'geography') {
-      columnDefinition.header = {
-        buttons: [
-          {
-            cssClass: 'div-view-geometry-column',
-            tooltip: 'View all geometries in this column',
-            showOnHover: false,
-            command: 'view-geometries',
-            content: '<button class="btn-xs btn-primary"><i class="fa fa-eye" aria-hidden="true"></i></button>',
-          },
-        ],
-      };
-    }
+    columnDefinition['width'] += 28;
+    columnDefinition.header = {
+      buttons: [
+        {
+          cssClass: 'div-view-geometry-column',
+          tooltip: 'View all geometries in this column',
+          showOnHover: false,
+          command: 'view-geometries',
+          content: '<button class="btn-xs btn-primary"><i class="fa fa-eye" aria-hidden="true"></i></button>',
+        },
+      ],
+    };
   },
 
   parse_data: parseData,

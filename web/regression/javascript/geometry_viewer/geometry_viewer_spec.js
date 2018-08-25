@@ -28,14 +28,6 @@ describe('geometry viewer test', function () {
       add_button(columnDef);
       expect(columnDef.header).toBeDefined();
     });
-
-    it('should do nothing for other type', function () {
-      let columnDef = {
-        column_type_internal: 'integer',
-      };
-      add_button(columnDef);
-      expect(columnDef.header).toBeUndefined();
-    });
   });
 
   describe('geometry viewer rener geometry test', function () {
