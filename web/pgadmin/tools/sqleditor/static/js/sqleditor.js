@@ -272,7 +272,7 @@ define('tools.querytool', [
       var geometry_viewer = new pgAdmin.Browser.Panel({
         name: 'geometry_viewer',
         title: gettext('Geometry Viewer'),
-        width: '50%',
+        width: '100%',
         height: '100%',
         isCloseable: true,
         isPrivate: true,
