@@ -7,17 +7,32 @@ import Backform from 'pgadmin.backform';
 import axios from 'axios';
 import queryToolActions from 'sources/sqleditor/query_tool_actions';
 import filterDialogModel from 'sources/sqleditor/filter_dialog_model';
+import {handleQueryToolAjaxError} from 'sources/sqleditor/query_tool_http_error_handler';
 
 let FilterDialog = {
-  'dialog': function(handler) {
+  geturl: function(transId, reconnect) {
+    let url = url_for('sqleditor.get_filter_data', {
+      'trans_id': transId,
+    });
+
+    if(reconnect) {
+      url += '?connect=1';
+    }
+
+    return url;
+  },
+
+  'dialog': function(handler, reconnect) {
     let title = gettext('Sort/Filter options');
-    axios.get(
-      url_for('sqleditor.get_filter_data', {
-        'trans_id': handler.transId,
-      }),
-      { headers: {'Cache-Control' : 'no-cache'} }
-    ).then(function (res) {
-      let response = res.data.data.result;
+
+    $.ajax({
+      url: this.geturl(handler.transId, reconnect),
+      headers: {
+        'Cache-Control' : 'no-cache',
+      },
+    })
+    .done(function (res) {
+      let response = res.data.result;
 
       // Check the alertify dialog already loaded then delete it to clear
       // the cache
@@ -51,13 +66,13 @@ let FilterDialog = {
                   }),
                 },
               }, {
-                text: gettext('Ok'),
-                className: 'btn btn-primary fa fa-lg fa-save pg-alertify-button',
+                text: gettext('OK'),
+                className: 'btn btn-primary pg-alertify-button',
                 'data-btn-name': 'ok',
               }, {
                 text: gettext('Cancel'),
                 key: 27,
-                className: 'btn btn-danger fa fa-lg fa-times pg-alertify-button',
+                className: 'btn btn-danger pg-alertify-button',
                 'data-btn-name': 'cancel',
               }],
               // Set options for dialog
@@ -234,6 +249,9 @@ let FilterDialog = {
       });
 
       Alertify.filterDialog(title).resizeTo('65%', '60%');
+    })
+    .fail(function(e) {
+      handleQueryToolAjaxError(pgAdmin, handler, e, '_show_filter', [], true);
     });
   },
 };

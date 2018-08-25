@@ -511,6 +511,22 @@ define('tools.querytool', [
         };
       });
 
+       /* If the screen width is small and we hover over the Explain Options,
+        * the submenu goes behind the screen on the right side.
+        * Below logic will make it appear on the left.
+        */
+      $('.dropdown-submenu').on('mouseenter',function() {
+        var menu = $(this).find('ul.dropdown-menu');
+        var menupos = $(menu).offset();
+
+        if (menupos.left + menu.width() > $(window).width()) {
+          var newpos = -$(menu).width();
+          menu.css('left',newpos);
+        }
+      }).on('mouseleave', function() {
+        var menu = $(this).find('ul.dropdown-menu');
+        menu.css('left','');
+      });
 
       self.reflectPreferences();
 
@@ -3070,8 +3086,17 @@ define('tools.querytool', [
 
       // This function will show the filter in the text area.
       _show_filter: function() {
-        let self = this;
-        FilterHandler.dialog(self);
+        let self = this,
+          reconnect = false;
+
+        /* When server is disconnected and connected, connection is lost,
+         * To reconnect pass true
+         */
+        if (arguments.length > 0 &&
+          arguments[arguments.length - 1] == 'connect') {
+          reconnect = true;
+        }
+        FilterHandler.dialog(self, reconnect);
       },
 
       // This function will include the filter by selection.
